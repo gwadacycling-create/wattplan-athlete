@@ -169,6 +169,26 @@ select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px 
 .xcol{display:flex;flex-direction:column;gap:8px;min-width:0}
 .xch textarea{font-size:13px}
 a.btn{text-decoration:none;display:inline-block}
+.prio{display:inline-block;font-family:var(--display);font-size:13px;font-weight:700;background:var(--accent);color:var(--accent-ink);border-radius:4px;padding:0 6px;margin-left:4px}
+.races{display:flex;flex-direction:column;gap:4px}
+.race{display:grid;grid-template-columns:60px minmax(0,1fr) auto auto;gap:6px;align-items:center;font-size:13px}
+.raceadd{display:grid;grid-template-columns:minmax(0,1fr) 56px auto;gap:6px;margin-top:6px}
+#r-date{grid-column:1/-1}
+.raceadd input,.raceadd select{padding:6px 6px;font-size:13px}
+.backup{display:flex;flex-direction:column;gap:4px}
+.backup .hint .warn{display:inline}
+#dash{display:flex;flex-direction:column;gap:10px}
+table.dash td{white-space:normal;vertical-align:top}
+table.dash td:first-child,table.dash td.num{white-space:nowrap}
+table.dash tr[data-sel]{cursor:pointer}
+table.dash tr[data-sel]:hover td,table.dash tr.cur td{background:var(--soft)}
+.alert{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;margin:1px 0;border:1px solid currentColor}
+.alert.miss{color:var(--z6)} .alert.warn{color:var(--z5)} .alert.ok{color:var(--z3)}
+.mk.warn{color:var(--z5);font-weight:600}
+.fit{margin:0;font-size:13px}
+.bodyp{display:flex;flex-direction:column;gap:10px}
+.chart.mini{min-width:0;max-width:420px}
+input[type=file]{font-size:13px;max-width:100%}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -195,7 +215,11 @@ a.btn{text-decoration:none;display:inline-block}
         <div class="field"><label for="f-target">FTP objectif (W)</label><input id="f-target" type="number" min="80" max="500"></div>
       </div>
       <div class="field"><label for="f-start">Début du plan</label><input id="f-start" type="date"></div>
-      <div class="field"><label for="f-race">Date de la 1re course</label><input id="f-race" type="date"></div>
+      <div class="field"><label for="f-race">Course objectif (fin du plan)</label><input id="f-race" type="date"></div>
+      <div class="field"><label for="f-racename">Nom de la course objectif</label><input id="f-racename" type="text"></div>
+      <div class="field"><label>Autres courses de la saison</label><div id="races" class="races"></div>
+        <div class="raceadd"><input id="r-date" type="date" aria-label="Date de la course"><input id="r-name" type="text" placeholder="Nom" aria-label="Nom de la course"><select id="r-prio" aria-label="Priorité"><option value="B">B</option><option value="C">C</option><option value="A">A</option></select><button type="button" class="btn sm" id="r-add">Ajouter</button></div>
+        <p class="hint">A = objectif · B = importante, allégée la veille · C = course d'entraînement</p></div>
       <div class="field">
         <label id="l-trainer">Jours home trainer (2 à 4)</label>
         <div class="chips" id="c-trainer" role="group" aria-labelledby="l-trainer"></div>
@@ -218,6 +242,7 @@ a.btn{text-decoration:none;display:inline-block}
     </aside>
 
     <section class="plan" aria-label="Plan d'entraînement">
+      <div class="panel" id="dash" hidden></div>
       <div class="panel onb" id="onb" hidden>
         <h2>Bienvenue sur WattPlan</h2>
         <p>Ton coach t'a envoyé un message avec un code qui commence par <b>WPP1:</b>. Copie tout le message et colle-le ici.</p>
@@ -258,6 +283,8 @@ a.btn{text-decoration:none;display:inline-block}
 
       <div class="panel" id="pmc"></div>
 
+      <div class="panel bodyp" id="body"></div>
+
       <div class="panel" id="ask" hidden>
         <h2>Demande à ton coach</h2>
         <p class="hint">Le coach connaît ton plan, tes bilans et ta forme du matin.</p>
@@ -291,7 +318,7 @@ a.btn{text-decoration:none;display:inline-block}
 (function(){
 const DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const DAYS_L=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
-const DEFAULTS={name:'Arthur',age:51,weight:75,ftp:200,target:240,start:'2026-11-16',race:'2027-01-10',trainer:[1,3,5],outdoor:6,maxMin:60,outH:2,feel:{},forceRecup:[],log:{},check:{},hrBase:null};
+const DEFAULTS={name:'Arthur',age:51,weight:75,ftp:200,target:240,start:'2026-11-16',race:'2027-01-10',trainer:[1,3,5],outdoor:6,maxMin:60,outH:2,feel:{},forceRecup:[],log:{},check:{},hrBase:null,raceName:'Première course UFOLEP',races:[],ovr:{},notes:{},weights:{},ftpHist:{}};
 /* Réglages selon l'âge : longueur du cycle (semaines de charge + 1 semaine légère), progression attendue, intensité VO2max */
 function ageProfile(a){
   if(a>=55)return{cyc:3,gain:.009,vo2:-1,label:`${a} ans : 2 semaines de charge puis 1 semaine légère, VO2max un peu réduit, au moins 48 h entre deux séances dures`};
@@ -306,9 +333,9 @@ const ATHLETE_URL='https://gwadacycling-create.github.io/wattplan-athlete/';
 const TKEY='wattplan:team', AKEY='wattplan:athlete';
 let T=null, S=null, LAST=null, LAST_W=[];
 
-function fresh(){return Object.assign({},DEFAULTS,{feel:{},forceRecup:[],log:{},check:{}});}
+function fresh(){return Object.assign({},DEFAULTS,{feel:{},forceRecup:[],log:{},check:{},races:[],ovr:{},notes:{},weights:{},ftpHist:{}});}
 function load(){try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&v.ftp){const o=Object.assign(fresh(),v);o.feel=o.feel||{};o.forceRecup=o.forceRecup||[];o.log=o.log||{};o.check=o.check||{};return o;}}catch(e){}return fresh();}
-function norm(o){o=Object.assign(fresh(),o);['feel','log','check'].forEach(k=>o[k]=o[k]||{});o.forceRecup=o.forceRecup||[];return o;}
+function norm(o){o=Object.assign(fresh(),o);['feel','log','check','ovr','notes','weights','ftpHist'].forEach(k=>o[k]=o[k]||{});o.forceRecup=o.forceRecup||[];o.races=o.races||[];if(!Object.keys(o.ftpHist).length&&o.start)o.ftpHist[o.start]=o.ftp;return o;}
 function loadTeam(){try{const v=JSON.parse(localStorage.getItem(TKEY));if(v&&v.list&&Object.keys(v.list).length){Object.keys(v.list).forEach(k=>v.list[k]=norm(v.list[k]));if(!v.list[v.cur])v.cur=Object.keys(v.list)[0];return v;}}catch(e){}
   const s0=load();s0.id=s0.id||'arthur';return{cur:s0.id,list:{[s0.id]:s0},coachTel:''};}
 function loadAthlete(){try{const v=JSON.parse(localStorage.getItem(AKEY));if(v&&v.ftp)return norm(v);}catch(e){}return null;}
@@ -437,9 +464,13 @@ function build(){
     for(let d=0;d<7;d++){
       const date=addD(wkStart,d);
       if(date<start){days.push({d,date,kind:'none'});continue;}
-      if(iso(date)===S.race){days.push({d,date,kind:'race'});continue;}
+      const k=iso(date), rc=raceOn(k);
       if(date>race){days.push({d,date,kind:'none'});continue;}
-      const f=S.feel[iso(date)];
+      if(rc){days.push({d,date,kind:'race',name:rc.name,prio:rc.prio});continue;}
+      const f=S.feel[k];
+      if(S.ovr[k]){if(tdays.includes(d)&&si<sess.length)si++;days.push(adjust(applyOvr({d,date},S.ovr[k],ph,lv),f));continue;}
+      const nx=raceOn(iso(addD(date,1)));
+      if(nx&&nx.prio!=='C'&&(tdays.includes(d)||d===S.outdoor)){if(tdays.includes(d)&&si<sess.length)si++;days.push(adjust({d,date,kind:'trainer',s:Object.assign(preset('open',ph,1),{manual:false})},f));continue;}
       if(tdays.includes(d)&&si<sess.length){let s0=sess[si++];if(CO.f!==1&&iso(date)>TODAY&&!s0.test)s0=scaleS(s0,CO.f);days.push(adjust({d,date,kind:'trainer',s:s0},f));continue;}
       if(d===S.outdoor&&ph!=='race'){days.push(adjust({d,date,kind:'out',s:outdoorRide(ph,S.outH)},f));continue;}
       const renfo=!restDone&&(ph==='base'||ph==='build')&&!tdays.includes(d);
@@ -489,7 +520,7 @@ function coachState(){
   return{f,msg,missed,n,avg};
 }
 function tssOf(x){
-  if(x.kind==='race')return 130;
+  if(x.kind==='race')return x.prio==='C'?110:x.prio==='B'?120:130;
   if(x.kind==='trainer'){if(x.s.test)return 45;
     return Math.round(x.s.steps.reduce((a,y)=>{const seg=(d,p)=>d/60*p*p*100;
       if(y.k==='i')return a+y.n*(seg(y.on,y.pon)+seg(y.off,y.poff));
@@ -514,6 +545,7 @@ function sessionScore(c){
 /* ---------- Rendu ---------- */
 function renderForm(){
   if(!S)return;
+  $('f-racename').value=S.raceName||'';
   $('f-name').value=S.name;$('f-age').value=S.age;$('f-weight').value=S.weight;$('f-ftp').value=S.ftp;$('f-target').value=S.target;
   $('f-start').value=S.start;$('f-race').value=S.race;$('f-max').value=S.maxMin;$('f-outh').value=S.outH;
   $('c-trainer').innerHTML=DAYS.map((d,i)=>`<button type="button" class="chip" id="t-${i}" aria-pressed="${S.trainer.includes(i)}" data-d="${i}">${d}</button>`).join('');
@@ -522,7 +554,7 @@ function renderForm(){
 function render(){
   document.body.classList.toggle('athlete',MODE==='athlete');
   const noPlan=MODE==='athlete'&&!S;
-  $('onb').hidden=!noPlan&&!SHOW_ONB; document.querySelectorAll('section.plan>.panel:not(#onb):not(#ask), #weeks, header .stats').forEach(el=>el.hidden=noPlan);
+  $('onb').hidden=!noPlan&&!SHOW_ONB; document.querySelectorAll('section.plan>.panel:not(#onb):not(#ask):not(#dash), #weeks, header .stats').forEach(el=>el.hidden=noPlan);
   $('ask').hidden=noPlan||!(SAMPLE&&MODE==='coach');
   if(noPlan){$('h-sub').textContent='Ton plan d\'entraînement';return;}
   $('v-max').textContent=S.maxMin+' min';$('v-outh').textContent=mins(S.outH*60);
@@ -554,26 +586,30 @@ function render(){
   renderCheck();
   renderPMC(P);
   renderXch();
+  renderBody();
+  renderRaces();
+  renderDash();
   if(MODE==='athlete'){$('h-sub').textContent='Plan de '+(S.name||'cycliste')+' · préparé par ton coach';$('ask').hidden=true;}
 }
 /* ---------- Échanges coach ↔ athlète (codes à envoyer par WhatsApp) ---------- */
 const b64e=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 function b64d(str,prefix){const m=String(str).match(new RegExp(prefix+'([A-Za-z0-9+/=]+)'));if(!m)return null;try{return JSON.parse(decodeURIComponent(escape(atob(m[1]))));}catch(e){return null;}}
-const PLAN_KEYS=['id','name','age','weight','ftp','target','start','race','trainer','outdoor','maxMin','outH','forceRecup'];
+const PLAN_KEYS=['id','name','age','weight','ftp','target','start','race','raceName','races','ovr','notes','trainer','outdoor','maxMin','outH','forceRecup','ftpHist'];
 function recent(obj,days){const lim=iso(addD(pd(TODAY),-days));const o={};Object.keys(obj||{}).forEach(k=>{if(k>lim&&k<=TODAY)o[k]=obj[k];});return o;}
 function planCode(){const o={v:1,tel:T.coachTel||''};PLAN_KEYS.forEach(k=>o[k]=S[k]);return'WPP1:'+b64e(o);}
 function planMessage(){
   return`Salut ${S.name||''} ! Voici ton plan d'entraînement WattPlan.\n\n1. Ouvre ce lien : ${ATHLETE_URL||'(lien de la page athlète)'}\n2. Colle ce code quand la page te le demande :\n\n${planCode()}\n\nChaque matin, fais ton check. Après chaque séance, note ton effort ressenti et appuie sur « Envoyer au coach ».`;
 }
-function bilanCode(){return'WPB1:'+b64e({v:1,id:S.id,name:S.name,sent:TODAY,log:recent(S.log,21),check:recent(S.check,21),feel:recent(S.feel,21),hrBase:S.hrBase||null,forceRecup:S.forceRecup});}
+function bilanCode(){return'WPB1:'+b64e({v:1,id:S.id,name:S.name,sent:TODAY,log:recent(S.log,21),check:recent(S.check,21),feel:recent(S.feel,21),weights:recent(S.weights,60),hrBase:S.hrBase||null,forceRecup:S.forceRecup});}
 function bilanMessage(){
   const lines=[`Bilan WattPlan · ${S.name||'athlète'} · ${fmt(pd(TODAY))}`];
   const c=S.check[TODAY];
   if(c&&c.sleep!=null)lines.push(`Check du matin : sommeil ${['mauvais','moyen','bon'][c.sleep]}, jambes ${['lourdes','normales','fraîches'][c.legs]??'?'}, motivation ${['faible','normale','forte'][c.motiv]??'?'}${c.hr?', FC au réveil '+c.hr:''}`);
   const L=Object.entries(recent(S.log,7)).sort();
   if(L.length){lines.push('Séances des 7 derniers jours :');L.forEach(([k,v])=>{const f=findDay(k);const t=f&&f.x.s?f.x.s.title:'séance';
-    lines.push(`- ${DAYS[dow(pd(k))]} ${fmt(pd(k))} ${t} : ${v.done?'faite'+(v.rpe?`, effort ${v.rpe}/10 (attendu ${v.exp})`:''):'non faite'}`);});}
+    lines.push(`- ${DAYS[dow(pd(k))]} ${fmt(pd(k))} ${t} : ${v.done?'faite'+(v.rpe?`, effort ${v.rpe}/10 (attendu ${v.exp})`:'')+(v.fit?`, ${mins(v.fit.dur)} à ${v.fit.np} W normalisés`:''):'non faite'}`);});}
   else lines.push('Pas encore de séance notée cette semaine.');
+  const lw=Object.entries(S.weights||{}).sort().pop();if(lw&&lw[0]>iso(addD(pd(TODAY),-7)))lines.push(`Poids : ${dec(lw[1],1)} kg (${fmt(pd(lw[0]))})`);
   const F=Object.entries(recent(S.feel,7));if(F.length)lines.push('Fatigue notée : '+F.map(([k,v])=>`${fmt(pd(k))} ${v==='rest'?'épuisé':'fatigué'}`).join(', '));
   lines.push('','Code pour WattPlan (à coller par le coach) :',bilanCode());
   return lines.join('\n');
@@ -587,6 +623,7 @@ function importBilan(txt){
   if(!T.list[id]){toast(`Le bilan vient de ${o.name||'un athlète'}, qui n'est pas dans ta liste. Crée-le d'abord ou vérifie le code.`);return;}
   const a=T.list[id];
   a.log=Object.assign(a.log||{},o.log||{});a.check=Object.assign(a.check||{},o.check||{});a.feel=Object.assign(a.feel||{},o.feel||{});
+  a.weights=Object.assign(a.weights||{},o.weights||{});const wl=Object.entries(a.weights).sort().pop();if(wl)a.weight=wl[1];
   if(o.hrBase)a.hrBase=o.hrBase; if(Array.isArray(o.forceRecup))a.forceRecup=[...new Set([...(a.forceRecup||[]),...o.forceRecup])];
   a.lastBilan=o.sent; T.cur=id; S=a; save(); renderForm(); render();
   toast(`Bilan de ${a.name} importé (${Object.keys(o.log||{}).length} séances, ${Object.keys(o.check||{}).length} checks). Le plan est ajusté.`);
@@ -612,6 +649,8 @@ function renderXch(){
   $('team').innerHTML=`<div class="field"><label for="f-athlete">Athlète</label><select id="f-athlete">${opts}</select></div>
   <div class="actions"><button type="button" class="btn ghost sm" id="b-new">+ Nouvel athlète</button>${Object.keys(T.list).length>1?`<button type="button" class="btn ghost sm" id="b-del">Supprimer</button>`:''}</div>
   <div id="del-confirm" hidden class="hint">Supprimer ${esc(S.name||'cet athlète')} et tous ses bilans ? <button type="button" class="btn sm" id="b-del-yes">Oui, supprimer</button> <button type="button" class="btn ghost sm" id="b-del-no">Annuler</button></div>
+  <div class="backup"><div class="actions"><button type="button" class="btn sm" id="b-backup">Sauvegarder (.json)</button><button type="button" class="btn ghost sm" id="b-restore">Restaurer</button><input type="file" id="f-restore" accept=".json,application/json" hidden></div><p class="hint">${backupInfo()} Garde le fichier dans un endroit sûr (clé USB, Google Drive…).</p>
+  <div id="restore-confirm" class="hint" hidden></div></div>
   <div class="field"><label for="f-tel">Ton numéro WhatsApp de coach</label><input id="f-tel" type="text" inputmode="tel" placeholder="ex. +590 690 12 34 56" value="${esc(T.coachTel||'')}"></div>`;
   const pm=planMessage();
   $('xch').innerHTML=`<h2>Échanges avec ${esc(S.name||"l'athlète")}</h2>
@@ -622,6 +661,123 @@ function renderXch(){
   <textarea id="x-in" rows="5" placeholder="Bilan WattPlan · … WPB1:…"></textarea>
   <div class="actions"><button type="button" class="btn sm" id="x-import">Importer le bilan</button></div></div></div>`;
 }
+
+/* ---------- Séances au choix (modification manuelle par le coach) ---------- */
+const PRESETS=[['','Séance prévue par le plan'],['z2','Endurance Z2 45 min'],['ss','Sweet spot'],['tempo','Tempo'],['seuil','Seuil'],['vo2','VO2max'],['ou','Over-under'],['3030','30/30'],['sim','Simulation course'],['force','Force + sprints'],['recup','Récupération 30 min'],['open','Déblocage avant course'],['test','Test FTP'],['out','Sortie dehors'],['rest','Repos']];
+function preset(key,ph,lv){
+  const D=S.maxMin,L=Math.max(1,Math.min(3,lv||2)), t=(p,i,l)=>trainerSessions(p,l||L,D,3)[i];
+  const m={ss:()=>t('base',0),tempo:()=>t('base',1),force:()=>t('base',2),seuil:()=>t('build',0),vo2:()=>t('build',1),ou:()=>t('spec',0),'3030':()=>t('spec',1),sim:()=>t('spec',2),recup:()=>t('recup',1,1),open:()=>t('race',2,1),
+    z2:()=>({title:'Endurance Z2 45 min',goal:'Endurance facile, cadence 85 à 95 tr/min.',steps:[{k:'w',d:8,lo:.45,hi:.65},{k:'s',d:32,p:.65},{k:'c',d:5,lo:.45,hi:.65}]}),
+    test:()=>({test:true,title:'Test FTP (Ramp Test Zwift)',goal:'Fais-le reposé. Le coach mettra ensuite ta nouvelle FTP à jour.',steps:[]})};
+  return m[key]?Object.assign(m[key](),{manual:true}):null;
+}
+function applyOvr(day,key,ph,lv){
+  if(key==='rest')return Object.assign(day,{kind:'rest',manual:true});
+  if(key==='out')return Object.assign(day,{kind:'out',s:Object.assign(outdoorRide(ph==='race'?'recup':ph,S.outH),{manual:true})});
+  const s=preset(key,ph,lv);return s?Object.assign(day,{kind:'trainer',s}):day;
+}
+/* ---------- Courses de la saison ---------- */
+function raceOn(k){if(k===S.race)return{date:k,name:S.raceName||'Course objectif',prio:'A',main:true};return(S.races||[]).find(r=>r.date===k)||null;}
+const PRIO_TXT={A:'Course objectif : tu arrives frais, tu donnes tout.',B:'Course importante : séance allégée la veille, échauffement 20 min.',C:'Course d\'entraînement : roule-la comme une grosse séance, sans affûtage.'};
+/* ---------- Lecture des fichiers .fit (Zwift, Garmin, Wahoo…) ---------- */
+function parseFit(buf){
+  const dv=new DataView(buf), hs=dv.getUint8(0), size=dv.getUint32(4,true);
+  if(String.fromCharCode(dv.getUint8(8),dv.getUint8(9),dv.getUint8(10),dv.getUint8(11))!=='.FIT')throw new Error('pas un fichier .fit');
+  let p=hs; const end=Math.min(hs+size,buf.byteLength), defs={}, P=[], H=[], T=[];
+  const rd=(sz,le,signedOk)=>{let v;if(sz===1)v=dv.getUint8(p);else if(sz===2)v=dv.getUint16(p,le);else if(sz===4)v=dv.getUint32(p,le);else v=null;p+=sz;return v;};
+  while(p<end){
+    const h=dv.getUint8(p++);
+    if(h&0x80){const def=defs[(h>>5)&3];if(!def)break;readData(def);continue;}
+    if(h&0x40){p++;const le=dv.getUint8(p++)===0;const g=le?dv.getUint16(p,true):dv.getUint16(p,false);p+=2;const n=dv.getUint8(p++);const f=[];
+      for(let i=0;i<n;i++){f.push({num:dv.getUint8(p),size:dv.getUint8(p+1)});p+=3;}
+      let dev=0;if(h&0x20){const nd=dv.getUint8(p++);for(let i=0;i<nd;i++){dev+=dv.getUint8(p+1);p+=3;}}
+      defs[h&0x0F]={g,le,f,dev};continue;}
+    const def=defs[h&0x0F];if(!def)break;readData(def);
+  }
+  function readData(def){
+    let pw=null,hr=null,ts=null;
+    def.f.forEach(fd=>{const v=rd(fd.size,def.le);if(def.g===20){if(fd.num===7&&fd.size===2&&v!==0xFFFF)pw=v;if(fd.num===3&&fd.size===1&&v!==0xFF)hr=v;if(fd.num===253&&fd.size===4)ts=v;}});
+    p+=def.dev; if(def.g===20&&(pw!=null||hr!=null)){P.push(pw??0);H.push(hr);T.push(ts);}
+  }
+  if(P.length<30)throw new Error('pas assez de données de puissance');
+  const n=P.length, ts0=T.find(v=>v!=null), ts1=[...T].reverse().find(v=>v!=null);
+  const dur=ts0!=null&&ts1!=null&&ts1>ts0?(ts1-ts0)/60:n/60;
+  const avg=P.reduce((a,b)=>a+b,0)/n; let r=0,s4=0,c=0,sum=0;
+  for(let i=0;i<n;i++){sum+=P[i];if(i>=30)sum-=P[i-30];if(i>=29){r=sum/30;s4+=r**4;c++;}}
+  const np=c?Math.pow(s4/c,.25):avg, hh=H.filter(v=>v);
+  return{dur:Math.round(dur),avg:Math.round(avg),np:Math.round(np),max:Math.max(...P),hr:hh.length?Math.round(hh.reduce((a,b)=>a+b,0)/hh.length):null};
+}
+function plannedNP(s){
+  let t=0,a=0;const add=(d,p)=>{t+=d;a+=d*p**4;};
+  (s.steps||[]).forEach(y=>{if(y.k==='i')for(let i=0;i<y.n;i++){add(y.on,y.pon);add(y.off,y.poff);}else if(y.k==='s')add(y.d,y.p);else add(y.d,(y.lo+y.hi)/2);});
+  return t?Math.round(S.ftp*Math.pow(a/t,.25)):null;
+}
+function fitLine(x,lg){
+  if(!lg||!lg.fit)return'';const f=lg.fit, pn=x.kind==='trainer'?plannedNP(x.s):null;
+  let badge='';if(pn){const r=f.np/pn;badge=r>1.1?'<span class="mk warn">au-dessus du prévu</span>':r>=.95?'<span class="mk ok">conforme</span>':r>=.85?'<span class="mk warn">un peu en dessous</span>':'<span class="mk miss">nettement en dessous</span>';}
+  return`<p class="fit num">Réalisé : ${mins(f.dur)} · moyenne ${f.avg} W · normalisée ${f.np} W${f.hr?` · FC ${f.hr}`:''}${pn?` · prévu ≈ ${pn} W normalisés (${Math.round(f.np/pn*100)} %) ${badge}`:''}</p>`;
+}
+/* ---------- Tableau de bord coach ---------- */
+function athleteStatus(a){
+  const keep=S;S=a;let P;try{P=build();}catch(e){P={error:true};}
+  const st={a,P};
+  if(!P.error){
+    const wk=P.weeks.find(w=>w.days.some(x=>iso(x.date)===TODAY));
+    st.ph=wk?PH[wk.ph]:(TODAY<S.start?'Pas commencé':'Terminé');
+    if(wk){const due=wk.days.filter(x=>(x.kind==='trainer'||x.kind==='out')&&iso(x.date)<=TODAY);st.due=due.length;st.done=due.filter(x=>(S.log[iso(x.date)]||{}).done).length;}
+    st.co=CO;
+    const c=S.check[TODAY];st.sc=c&&c.sleep!=null?sessionScore(c):null;
+    const lim=iso(addD(pd(TODAY),-7));st.tired=Object.keys(S.feel).filter(k=>k>lim&&k<=TODAY).length;
+    const nx=[{date:S.race,name:S.raceName||'Course objectif'},...(S.races||[])].filter(r=>r.date>=TODAY).sort((x,y)=>x.date<y.date?-1:1)[0];
+    if(nx)st.next={name:nx.name,days:Math.round((pd(nx.date)-pd(TODAY))/864e5)};
+    st.lastB=S.lastBilan?Math.round((pd(TODAY)-pd(S.lastBilan))/864e5):null;
+  }
+  S=keep;return st;
+}
+function renderDash(){
+  if(MODE!=='coach'){$('dash').hidden=true;return;}
+  $('dash').hidden=false;
+  const rows=Object.values(T.list).map(athleteStatus); CO=coachState();
+  $('dash').innerHTML=`<div class="actions" style="justify-content:space-between"><h2>Mes athlètes</h2><span class="hint">${rows.length} athlète${rows.length>1?'s':''} · clique sur une ligne pour l'ouvrir</span></div>
+  <div class="tblwrap"><table class="dash"><thead><tr><th>Athlète</th><th>FTP</th><th>Semaine</th><th>Séances</th><th>Ce matin</th><th>Dernier bilan</th><th>À surveiller</th></tr></thead><tbody>${rows.map(r=>{
+    const a=r.a, al=[];
+    if(!r.P.error){
+      if(r.lastB===null&&TODAY>a.start)al.push(['miss','Aucun bilan reçu']);else if(r.lastB>3)al.push(['miss',`Pas de nouvelles depuis ${r.lastB} j`]);
+      if(r.tired>=2)al.push(['warn',`${r.tired} jours de fatigue`]);
+      if(r.co&&r.co.f<1)al.push(['warn','Séances trop dures']);if(r.co&&r.co.f>1)al.push(['ok','Séances faciles : refaire un test']);
+      if(r.co&&r.co.missed>=2)al.push(['warn',`${r.co.missed} séances manquées`]);
+      if(r.next&&r.next.days<=10)al.push(['ok',`${r.next.name} dans ${r.next.days} j`]);
+    }
+    const sc=r.sc==null?'<span class="hint">pas de check</span>':r.sc<=2?'<span class="mk miss">Rouge</span>':r.sc<=4?'<span class="mk warn">Orange</span>':'<span class="mk ok">Vert</span>';
+    return`<tr class="${a.id===T.cur?'cur':''}" data-sel="${esc(a.id)}" tabindex="0"><td><b>${esc(a.name||'Sans nom')}</b></td><td class="num">${a.ftp} W · ${dec(a.ftp/a.weight,2)} W/kg</td><td>${esc(r.ph||'—')}</td><td class="num">${r.due!=null?`${r.done}/${r.due}`:'—'}</td><td>${sc}</td><td class="num">${r.lastB==null?'—':r.lastB===0?"aujourd'hui":`il y a ${r.lastB} j`}</td><td>${al.length?al.map(([c,t])=>`<span class="alert ${c}">${esc(t)}</span>`).join(' '):'<span class="hint">RAS</span>'}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+/* ---------- Poids et W/kg ---------- */
+function ftpAt(k){const e=Object.entries(S.ftpHist||{}).filter(([d])=>d<=k).sort();return e.length?e[e.length-1][1]:S.ftp;}
+function miniChart(pts,unit,color,fmtv){
+  const Wd=320,H=120,l=36,r=12,t=10,b=22,n=pts.length;
+  const vs=pts.map(p=>p.v),lo=Math.min(...vs),hi=Math.max(...vs),pad=(hi-lo)*.2||1,y0=lo-pad,y1=hi+pad;
+  const X=i=>l+(Wd-l-r)*(n===1?.5:i/(n-1)),Y=v=>t+(H-t-b)*(1-(v-y0)/(y1-y0));
+  const d=pts.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)).join(' ');
+  const last=pts[n-1];
+  return`<svg viewBox="0 0 ${Wd} ${H}" class="chart mini" role="img" aria-label="Évolution ${unit}">
+  <line x1="${l}" x2="${Wd-r}" y1="${Y(hi)}" y2="${Y(hi)}" class="gl"/><line x1="${l}" x2="${Wd-r}" y1="${Y(lo)}" y2="${Y(lo)}" class="gl"/>
+  <text x="${l-5}" y="${Y(hi)+4}" class="ax" text-anchor="end">${fmtv(hi)}</text><text x="${l-5}" y="${Y(lo)+4}" class="ax" text-anchor="end">${fmtv(lo)}</text>
+  <text x="${l}" y="${H-6}" class="ax">${fmt(pd(pts[0].k))}</text><text x="${Wd-r}" y="${H-6}" class="ax" text-anchor="end">${fmt(pd(last.k))}</text>
+  <path d="${d}" class="ln" style="stroke:${color}"/>${pts.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="${color}" stroke="var(--surface)" stroke-width="2"><title>${fmt(pd(p.k))} : ${fmtv(p.v)} ${unit}</title></circle>`).join('')}</svg>`;
+}
+function renderBody(){
+  const W8=Object.entries(S.weights||{}).sort().map(([k,v])=>({k,v}));
+  if(W8.length<2){$('body').innerHTML=`<h2>Poids et W/kg</h2><p class="hint">Note ton poids dans le check du matin, une ou deux fois par semaine, toujours au réveil. La courbe apparaît dès la deuxième pesée. ${W8.length?`Première pesée : ${dec(W8[0].v,1)} kg le ${fmt(pd(W8[0].k))}`:''}</p>`;return;}
+  const WK=W8.map(p=>({k:p.k,v:ftpAt(p.k)/p.v}));
+  const dW=W8[W8.length-1].v-W8[0].v;
+  $('body').innerHTML=`<div class="actions" style="justify-content:space-between"><h2>Poids et W/kg</h2><span class="hint num">${dW<=0?'':'+'}${dec(dW,1)} kg depuis le ${fmt(pd(W8[0].k))}</span></div>
+  <div class="xgrid"><div class="xcol"><h3>Poids (kg)</h3>${miniChart(W8,'kg','var(--c-ctl)',v=>dec(v,1))}</div><div class="xcol"><h3>Watts par kilo (FTP ÷ poids)</h3>${miniChart(WK,'W/kg','var(--c-atl)',v=>dec(v,2))}</div></div>
+  <p class="hint">Pour 3,5 W/kg avec ta FTP actuelle de ${S.ftp} W, il faudrait peser ${dec(S.ftp/3.5,1)} kg. Ne descends pas de plus de 0,5 kg par semaine pour garder ta puissance.</p>`;
+}
+/* ---------- Sauvegarde ---------- */
+let PENDING_RESTORE=null;
+function backupInfo(){const d=T.lastBackup?Math.round((pd(TODAY)-pd(T.lastBackup))/864e5):null;
+  return d===null?'<span class="warn">Jamais sauvegardé.</span>':d>7?`<span class="warn">Dernière sauvegarde il y a ${d} jours.</span>`:`Dernière sauvegarde : ${d===0?"aujourd'hui":`il y a ${d} j`}.`;}
 
 /* ---------- Coach : affichage ---------- */
 function todayDay(){const f=findDay(TODAY);return f?f.x:null;}
@@ -648,7 +804,8 @@ function renderCheck(){
   $('check').innerHTML=`<div class="actions" style="justify-content:space-between"><h2>Check du matin</h2><span class="hint num">${fmtL(pd(TODAY))}</span></div>
   <p class="hint" style="font-size:14px;color:var(--ink)">${today}</p>
   <div class="cgrid">${g('sleep','Sommeil',['Mauvais','Moyen','Bon'])}${g('legs','Jambes',['Lourdes','Normales','Fraîches'])}${g('motiv','Motivation',['Faible','Normale','Forte'])}
-  <div class="cgrp"><span>FC au réveil</span><input id="c-hr" type="number" min="30" max="120" placeholder="ex. 52" value="${c.hr||''}" aria-label="Fréquence cardiaque au réveil"><span class="hint">habituelle</span><input id="c-hrbase" type="number" min="30" max="120" placeholder="ex. 50" value="${S.hrBase||''}" aria-label="Fréquence cardiaque habituelle au repos"></div></div>
+  <div class="cgrp"><span>FC au réveil</span><input id="c-hr" type="number" min="30" max="120" placeholder="ex. 52" value="${c.hr||''}" aria-label="Fréquence cardiaque au réveil"><span class="hint">habituelle</span><input id="c-hrbase" type="number" min="30" max="120" placeholder="ex. 50" value="${S.hrBase||''}" aria-label="Fréquence cardiaque habituelle au repos"></div>
+  <div class="cgrp"><span>Poids (kg)</span><input id="c-weight" type="number" min="35" max="160" step="0.1" placeholder="ex. 74,5" value="${(S.weights||{})[TODAY]||''}" aria-label="Poids ce matin"><span class="hint">facultatif, 1 à 2 fois par semaine</span></div></div>
   ${verdict}
   <div class="coachmsg"><b>Le mot du coach</b><p>${esc(CO.msg||"Après chaque séance, ouvre-la et note ton effort ressenti de 1 à 10. Je compare avec l'effort attendu et j'ajuste les séances suivantes, comme le ferait un entraîneur.")}</p></div>`;
 }
@@ -656,7 +813,8 @@ function logBar(x){
   const k=iso(x.date); if(k>TODAY)return'';
   const lg=S.log[k]||{}, exp=expRPE(x);
   const rpe=lg.done?`<div class="feel"><span>Effort ressenti (attendu ${exp}/10) :</span>${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" class="chip rpe" aria-pressed="${lg.rpe===n}" data-rpe="${n}" data-exp="${exp}" data-date="${k}">${n}</button>`).join('')}</div><p class="hint">1 = très facile · 5 = soutenu · 7 = dur · 9 = presque à fond · 10 = maximal</p>`:'';
-  return`<div class="logbox"><div class="feel"><span>Bilan de la séance :</span><button type="button" class="chip f-ok" aria-pressed="${lg.done===true}" data-log="done" data-exp="${exp}" data-date="${k}">Faite</button><button type="button" class="chip f-rest" aria-pressed="${lg.done===false}" data-log="miss" data-date="${k}">Pas faite</button></div>${rpe}</div>`;
+  const fitIn=lg.done?`${fitLine(x,lg)}<div class="field"><label for="fit-${k}">Fichier de la séance (.fit de Zwift, Garmin, Wahoo…)</label><input type="file" id="fit-${k}" data-fit="${k}" accept=".fit"></div>`:'';
+  return`<div class="logbox">${fitIn}<div class="feel"><span>Bilan de la séance :</span><button type="button" class="chip f-ok" aria-pressed="${lg.done===true}" data-log="done" data-exp="${exp}" data-date="${k}">Faite</button><button type="button" class="chip f-rest" aria-pressed="${lg.done===false}" data-log="miss" data-date="${k}">Pas faite</button></div>${rpe}</div>`;
 }
 function logMark(x){
   const lg=S.log[iso(x.date)];if(!lg)return'';
@@ -764,18 +922,29 @@ function dlBar(x){
 }
 function renderDay(x){
   if(x.kind==='frest'){const dn2=`<div class="dname">${DAYS[x.d]}<small class="num">${fmt(x.date)}</small></div>`;
-    return`<details class="day" data-k="${iso(x.date)}"><summary>${dn2}<div class="stitle"><span class="tag" style="background:var(--z6)"></span>${esc(x.s.title)}<small>Prévu : ${esc(x.orig)}</small></div><div class="prof-cell"></div><div class="dur">0</div></summary><div class="detail"><p>${esc(x.s.goal)}</p>${feelBar(x)}</div></details>`;}
+    return`<details class="day" data-k="${iso(x.date)}"><summary>${dn2}<div class="stitle"><span class="tag" style="background:var(--z6)"></span>${esc(x.s.title)}<small>Prévu : ${esc(x.orig)}</small></div><div class="prof-cell"></div><div class="dur">0</div></summary><div class="detail"><p>${esc(x.s.goal)}</p>${feelBar(x)}${MODE==='coach'?editBar(iso(x.date)):''}</div></details>`;}
   const dn=`<div class="dname">${DAYS[x.d]}<small class="num">${fmt(x.date)}</small></div>`;
   if(x.kind==='none')return`<div class="day"><div class="rest">${dn}<div class="stitle">Hors plan</div><div class="prof-cell"></div><div></div></div></div>`;
-  if(x.kind==='rest')return`<div class="day"><div class="rest">${dn}<div class="stitle">${x.renfo?'Repos actif : renforcement 20 min (gainage, squats, fentes)':'Repos'}</div><div class="prof-cell"></div><div></div></div></div>`;
-  if(x.kind==='race')return`<div class="day race-row"><div class="rest">${dn}<div class="stitle" style="color:var(--ink);font-weight:600">Course UFOLEP<small>Échauffement 20 min avec 2 accélérations, puis tu fonces. Bonne course !</small></div><div class="prof-cell"></div><div class="dur">GO</div></div></div>`;
+  const k=iso(x.date), note=S.notes[k];
+  if(x.kind==='rest'){const t=x.manual?'Repos (choisi par le coach)':x.renfo?'Repos actif : renforcement 20 min (gainage, squats, fentes)':'Repos';
+    if(MODE!=='coach'&&!note)return`<div class="day"><div class="rest">${dn}<div class="stitle">${t}</div><div class="prof-cell"></div><div></div></div></div>`;
+    return`<details class="day" data-k="${k}"><summary>${dn}<div class="stitle">${t}${note?'<small>Mot du coach</small>':''}</div><div class="prof-cell"></div><div></div></summary><div class="detail">${noteBox(k)}${editBar(k)}</div></details>`;}
+  if(x.kind==='race')return`<div class="day race-row"><div class="rest">${dn}<div class="stitle" style="color:var(--ink);font-weight:600">${esc(x.name)} <span class="prio">${x.prio}</span><small>${PRIO_TXT[x.prio]} Échauffement 20 min avec 2 accélérations.${note?' Mot du coach : '+esc(note):''}</small></div><div class="prof-cell"></div><div class="dur">GO</div></div></div>`;
   const s=x.s, isOut=x.kind==='out';
   const m=isOut?s.min:sessMin(s);
   const color=isOut?'var(--z2)':s.test?'var(--accent)':`var(--${mainZone(s)})`;
-  const sub=(isOut?'Sortie dehors':s.test?'Test':'Home trainer')+(x.feel?' · prévu : '+esc(x.orig):'')+(s.coach?' · ajustée par le coach':'')+logMark(x);
+  const sub=(isOut?'Sortie dehors':s.test?'Test':'Home trainer')+(x.feel?' · prévu : '+esc(x.orig):'')+(s.coach?' · ajustée par le coach':'')+(s.manual?' · choisie par le coach':'')+(note?' · mot du coach':'')+logMark(x);
   const steps=s.steps&&s.steps.length?`<ol>${s.steps.map(st=>`<li class="num">${esc(stepText(st))}</li>`).join('')}</ol>`:'';
   return`<details class="day" data-k="${iso(x.date)}"><summary>${dn}<div class="stitle"><span class="tag" style="background:${color}"></span>${esc(s.title)}<small>${sub}</small></div><div class="prof-cell">${!isOut&&s.steps&&s.steps.length?profile(s):''}</div><div class="dur">${mins(m)}</div></summary>
-  <div class="detail"><p>${esc(s.goal)}</p>${steps}${dlBar(x)}${logBar(x)}${feelBar(x)}</div></details>`;
+  <div class="detail">${noteBox(k)}<p>${esc(s.goal)}</p>${steps}${dlBar(x)}${logBar(x)}${feelBar(x)}${editBar(k)}</div></details>`;
+}
+function noteBox(k){
+  if(MODE==='coach')return`<div class="field"><label for="n-${k}">Mot du coach (visible par l'athlète)</label><input type="text" id="n-${k}" data-note="${k}" value="${esc(S.notes[k]||'')}" placeholder="ex. Garde de la fraîcheur pour dimanche"></div>`;
+  return S.notes[k]?`<div class="coachmsg"><b>Mot du coach</b><p>${esc(S.notes[k])}</p></div>`:'';
+}
+function editBar(k){
+  if(MODE!=='coach')return'';
+  return`<div class="field"><label for="o-${k}">Changer cette journée</label><select id="o-${k}" data-ovr="${k}">${PRESETS.map(([v,t])=>`<option value="${v}"${(S.ovr[k]||'')===v?' selected':''}>${t}</option>`).join('')}</select></div>`;
 }
 function renderTips(){
   const prot=Math.round(S.weight*1.6);
@@ -864,8 +1033,9 @@ $('b-print').addEventListener('click',()=>{
 
 /* ---------- Événements ---------- */
 const num=(id,k)=>$(id).addEventListener('input',e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0){S[k]=v;save();render();}});
-num('f-age','age');num('f-weight','weight');num('f-ftp','ftp');num('f-target','target');num('f-max','maxMin');num('f-outh','outH');
+num('f-age','age');num('f-weight','weight');num('f-ftp','ftp');$('f-ftp').addEventListener('change',()=>{S.ftpHist[TODAY]=S.ftp;save();render();});num('f-target','target');num('f-max','maxMin');num('f-outh','outH');
 $('f-name').addEventListener('input',e=>{S.name=e.target.value.trim();save();render();});
+$('f-racename').addEventListener('input',e=>{S.raceName=e.target.value.trim();save();render();});
 ['start','race'].forEach(k=>$('f-'+k).addEventListener('change',e=>{if(e.target.value){S[k]=e.target.value;save();render();}}));
 $('c-trainer').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=+b.dataset.d;
   if(S.trainer.includes(d)){if(S.trainer.length<=2){toast('Garde au moins 2 jours de home trainer.');return;}S.trainer=S.trainer.filter(x=>x!==d);}
@@ -890,6 +1060,7 @@ $('check').addEventListener('click',e=>{const b=e.target.closest('button');if(!b
 });
 $('check').addEventListener('change',e=>{
   if(e.target.id==='c-hr'){const v=parseInt(e.target.value);const c=S.check[TODAY]||(S.check[TODAY]={});if(v>0)c.hr=v;else delete c.hr;save();render();}
+  if(e.target.id==='c-weight'){const v=parseFloat(String(e.target.value).replace(',','.'));if(v>0){S.weights[TODAY]=v;S.weight=v;}else delete S.weights[TODAY];save();renderForm();render();}
   if(e.target.id==='c-hrbase'){const v=parseInt(e.target.value);S.hrBase=v>0?v:null;save();render();}
 });
 $('ask-q').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('ask-text').value=b.dataset.q;askCoach(b.dataset.q);});
@@ -909,6 +1080,35 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
   if(b.id==='b-newcode'){SHOW_ONB=true;render();$('onb-cancel').hidden=false;$('onb').scrollIntoView({behavior:'smooth'});}
 });
 document.addEventListener('paste',e=>{if(e.target.id!=='onb-code')return;setTimeout(()=>{const v=$('onb-code').value;if(/WPP1:/.test(v)&&importPlan(v)){SHOW_ONB=false;$('onb-code').value='';render();toast('Ton plan est chargé.');window.scrollTo(0,0);}},50);});
+function renderRaces(){
+  if(MODE!=='coach')return;
+  const R=[...(S.races||[])].sort((a,b)=>a.date<b.date?-1:1);
+  $('races').innerHTML=R.length?R.map(r=>`<div class="race"><span class="num">${fmt(pd(r.date))}</span><span>${esc(r.name)}</span><span class="prio">${r.prio}</span><button type="button" class="btn ghost sm" data-rdel="${r.date}" aria-label="Supprimer ${esc(r.name)}">×</button></div>`).join(''):'<p class="hint">Aucune autre course pour l\'instant.</p>';
+}
+document.addEventListener('change',async e=>{
+  const t=e.target;
+  if(t.dataset&&t.dataset.ovr){const k=t.dataset.ovr;if(t.value)S.ovr[k]=t.value;else delete S.ovr[k];save();render();toast(t.value?'Journée modifiée : elle partira avec le prochain envoi du plan.':'Journée remise comme prévu.');return;}
+  if(t.dataset&&t.dataset.note){const k=t.dataset.note;const v=t.value.trim();if(v)S.notes[k]=v;else delete S.notes[k];save();render();toast('Mot enregistré : il partira avec le prochain envoi du plan.');return;}
+  if(t.dataset&&t.dataset.fit){const k=t.dataset.fit,f=t.files&&t.files[0];if(!f)return;
+    try{const r=parseFit(await f.arrayBuffer());S.log[k]=Object.assign(S.log[k]||{done:true},{done:true,fit:r});save();render();toast(`Fichier lu : ${mins(r.dur)}, ${r.np} W normalisés.`);}
+    catch(err){toast('Je n\'arrive pas à lire ce fichier ('+err.message+'). Utilise le fichier .fit de la séance.');}return;}
+  if(t.id==='f-restore'){const f=t.files&&t.files[0];if(!f)return;
+    try{const o=JSON.parse(await f.text());if(!o||!o.list||!Object.keys(o.list).length)throw 0;PENDING_RESTORE=o;
+      const box=$('restore-confirm');box.hidden=false;box.innerHTML=`Remplacer tes ${Object.keys(T.list).length} athlète(s) par la sauvegarde (${Object.keys(o.list).length} athlète(s)${o.lastBackup?', du '+fmt(pd(o.lastBackup)):''}) ? <button type="button" class="btn sm" id="b-restore-yes">Oui, restaurer</button> <button type="button" class="btn ghost sm" id="b-restore-no">Annuler</button>`;}
+    catch(err){toast("Ce fichier n'est pas une sauvegarde WattPlan.");}t.value='';return;}
+});
+document.addEventListener('click',async e=>{
+  const row=e.target.closest('tr[data-sel]');if(row){T.cur=row.dataset.sel;S=T.list[T.cur];save();renderForm();render();window.scrollTo({top:0});return;}
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.rdel){S.races=S.races.filter(r=>r.date!==b.dataset.rdel);save();render();return;}
+  if(b.id==='r-add'){const d=$('r-date').value,n=$('r-name').value.trim()||'Course',pr=$('r-prio').value;if(!d){toast('Choisis la date de la course.');return;}
+    S.races=(S.races||[]).filter(r=>r.date!==d);S.races.push({date:d,name:n,prio:pr});$('r-date').value='';$('r-name').value='';save();render();toast(`${n} ajoutée (${pr}).`);return;}
+  if(b.id==='b-backup'){T.lastBackup=TODAY;save();await saveFile(`wattplan-sauvegarde-${TODAY}.json`,JSON.stringify(T,null,1));render();return;}
+  if(b.id==='b-restore'){$('f-restore').click();return;}
+  if(b.id==='b-restore-no'){PENDING_RESTORE=null;$('restore-confirm').hidden=true;return;}
+  if(b.id==='b-restore-yes'&&PENDING_RESTORE){const o=PENDING_RESTORE;Object.keys(o.list).forEach(k=>o.list[k]=norm(o.list[k]));if(!o.list[o.cur])o.cur=Object.keys(o.list)[0];T=o;S=T.list[T.cur];PENDING_RESTORE=null;save();renderForm();render();toast('Sauvegarde restaurée.');}
+});
+document.addEventListener('keydown',e=>{const row=e.target.closest&&e.target.closest('tr[data-sel]');if(row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();row.click();}});
 document.addEventListener('change',e=>{
   if(e.target.id==='f-athlete'){T.cur=e.target.value;S=T.list[T.cur];save();renderForm();render();}
   if(e.target.id==='f-tel'){T.coachTel=e.target.value.trim();save();render();}
