@@ -33,6 +33,7 @@
   --c-ctl:#4F8FD6; --c-atl:#D4712A;
   --z1:#7F8898; --z2:#5B9BE0; --z3:#57B865; --z4:#E8C033; --z5:#F28B3A; --z6:#EA5548; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
@@ -521,7 +522,8 @@ function renderForm(){
 function render(){
   document.body.classList.toggle('athlete',MODE==='athlete');
   const noPlan=MODE==='athlete'&&!S;
-  $('onb').hidden=!noPlan&&!SHOW_ONB; document.querySelectorAll('section.plan>.panel:not(#onb), #weeks, header .stats').forEach(el=>el.hidden=noPlan);
+  $('onb').hidden=!noPlan&&!SHOW_ONB; document.querySelectorAll('section.plan>.panel:not(#onb):not(#ask), #weeks, header .stats').forEach(el=>el.hidden=noPlan);
+  $('ask').hidden=noPlan||!(SAMPLE&&MODE==='coach');
   if(noPlan){$('h-sub').textContent='Ton plan d\'entraînement';return;}
   $('v-max').textContent=S.maxMin+' min';$('v-outh').textContent=mins(S.outH*60);
   const name=S.name||'cycliste';
@@ -902,10 +904,11 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
   if(b.id==='b-del'){$('del-confirm').hidden=false;}
   if(b.id==='b-del-no'){$('del-confirm').hidden=true;}
   if(b.id==='b-del-yes'){delete T.list[T.cur];T.cur=Object.keys(T.list)[0];S=T.list[T.cur];save();renderForm();render();toast('Athlète supprimé.');}
-  if(b.id==='onb-go'){if(importPlan($('onb-code').value)){SHOW_ONB=false;$('onb-code').value='';render();toast('Ton plan est chargé.');}}
+  if(b.id==='onb-go'){if(importPlan($('onb-code').value)){SHOW_ONB=false;$('onb-code').value='';render();toast('Ton plan est chargé.');window.scrollTo(0,0);}}
   if(b.id==='onb-cancel'){SHOW_ONB=false;render();}
   if(b.id==='b-newcode'){SHOW_ONB=true;render();$('onb-cancel').hidden=false;$('onb').scrollIntoView({behavior:'smooth'});}
 });
+document.addEventListener('paste',e=>{if(e.target.id!=='onb-code')return;setTimeout(()=>{const v=$('onb-code').value;if(/WPP1:/.test(v)&&importPlan(v)){SHOW_ONB=false;$('onb-code').value='';render();toast('Ton plan est chargé.');window.scrollTo(0,0);}},50);});
 document.addEventListener('change',e=>{
   if(e.target.id==='f-athlete'){T.cur=e.target.value;S=T.list[T.cur];save();renderForm();render();}
   if(e.target.id==='f-tel'){T.coachTel=e.target.value.trim();save();render();}
