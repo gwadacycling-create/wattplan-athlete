@@ -257,6 +257,7 @@ input[type=file]{font-size:13px;max-width:100%}
           <h2 id="sum-title">Le plan</h2>
           <div class="actions">
             <button class="btn" id="b-zip" type="button">Toutes les séances Zwift + ERG (.zip)</button>
+            <button class="btn ghost" id="b-dossard" type="button">Code pour DOSSARD 971</button>
             <button class="btn ghost" id="b-print" type="button">Version à imprimer (.html)</button>
           </div>
         </div>
@@ -277,6 +278,15 @@ input[type=file]{font-size:13px;max-width:100%}
             <li>Copie les fichiers .zwo dans <b>Documents › Zwift › Workouts › (ton numéro Zwift)</b>.</li>
             <li>Relance Zwift : les séances apparaissent dans Entraînements › Custom Workouts. Ton Van Rysel D500 en mode ERG tiendra les watts tout seul.</li>
             <li>Pour les tests FTP, utilise le test « Ramp Test » intégré à Zwift : il met ta FTP à jour automatiquement.</li>
+          </ol>
+        </details>
+        <details>
+          <summary class="hint" style="cursor:pointer">Comment envoyer le plan dans DOSSARD 971</summary>
+          <ol class="hint" style="margin:6px 0 0;padding-left:18px">
+            <li>Appuie sur « Code pour DOSSARD 971 » : le code est copié. C'est un simple texte : depuis ton téléphone, envoie-le-toi par WhatsApp ou par mail pour le coller sur ton PC.</li>
+            <li>Dans DOSSARD 971, ouvre Entraînements › Importer une séance, colle le code dans « Code WattPlan » et appuie sur « Charger le plan ».</li>
+            <li>DOSSARD 971 affiche la séance du jour. Après un changement de plan (bilan, mot du coach, nouvelle FTP), recopie le code pour le mettre à jour.</li>
+            <li>Sans copier-coller, tu peux aussi importer le .zip entier dans DOSSARD 971.</li>
           </ol>
         </details>
       </div>
@@ -1015,6 +1025,19 @@ $('b-zip').addEventListener('click',async()=>{
   const blob=await zip.generateAsync({type:'blob'});
   toast(n+' séances prêtes…');
   saveFile('plan-ftp-'+slug(S.name||'velo').toLowerCase()+'-zwift.zip',blob);
+});
+/* Code pour DOSSARD 971 : séances home trainer datées (7 derniers jours et à venir), en % de FTP. */
+function dossardCode(){
+  const P=build();if(P.error)return null;
+  const lim=iso(addD(pd(TODAY),-7)),r=v=>Math.round(v*1000)/1000,ses=[];
+  P.weeks.forEach(w=>w.days.forEach(x=>{if(x.kind==='trainer'&&!x.s.test&&x.s.steps.length&&iso(x.date)>=lim)
+    ses.push({d:iso(x.date),w:w.i+1,t:x.s.title,st:x.s.steps.map(y=>{const o={k:y.k};['d','lo','hi','p','n','on','off','pon','poff'].forEach(f=>{if(typeof y[f]==='number')o[f]=r(y[f]);});if(y.note)o.note=String(y.note).slice(0,60);return o;})});}));
+  return'WPD1:'+b64e({v:1,name:S.name||'',ftp:S.ftp,s:ses});
+}
+$('b-dossard').addEventListener('click',async()=>{
+  const c=dossardCode();if(!c)return;
+  try{await navigator.clipboard.writeText(c);toast('Code copié : colle-le dans DOSSARD 971, Entraînements › Importer une séance.');}
+  catch(e){toast("Copie automatique impossible ici. Télécharge plutôt le .zip et importe-le dans DOSSARD 971.");}
 });
 $('b-print').addEventListener('click',()=>{
   const P=build(); if(P.error)return;
