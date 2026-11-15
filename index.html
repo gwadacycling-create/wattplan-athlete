@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="wattplan.png">
+</head>
+<body>
+<title>WattPlan Athlète</title>
+<script>window.WP_MODE="athlete"</script>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: réglages à gauche (pile sur mobile), plan semaine par semaine à droite, style "carnet de course" avec chiffres en condensé */
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --ink:#14213D; --muted:#5A6378; --line:#DCE1E9; --soft:#EAEEF4;
+  --accent:#E4572E; --accent-ink:#FFFFFF;
+  --z1:#98A1AE; --z2:#3B7FC4; --z3:#3E9E4C; --z4:#D9A900; --z5:#E8761C; --z6:#D33A2F;
+  --c-ctl:#3B7FC4; --c-atl:#D0661A;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E131D; --surface:#161D2A; --ink:#E7EBF2; --muted:#9AA4B7; --line:#2A3345; --soft:#1D2535;
+  --accent:#F26A44; --accent-ink:#140A06;
+  --c-ctl:#4F8FD6; --c-atl:#D4712A;
+  --z1:#7F8898; --z2:#5B9BE0; --z3:#57B865; --z4:#E8C033; --z5:#F28B3A; --z6:#EA5548; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E131D; --surface:#161D2A; --ink:#E7EBF2; --muted:#9AA4B7; --line:#2A3345; --soft:#1D2535;
+  --accent:#F26A44; --accent-ink:#140A06;
+  --c-ctl:#4F8FD6; --c-atl:#D4712A;
+  --z1:#7F8898; --z2:#5B9BE0; --z3:#57B865; --z4:#E8C033; --z5:#F28B3A; --z6:#EA5548; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(30px,5vw,44px)}
+h2{font-size:24px}
+h3{font-size:19px}
+.num{font-variant-numeric:tabular-nums}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+header.top{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between}
+.stats{display:flex;flex-wrap:wrap;gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:120px}
+.stat b{display:block;font-family:var(--display);font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.hl{border-color:var(--accent)}
+.stat.hl b{color:var(--accent)}
+.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+aside.panel{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px}
+@media (max-width:860px){aside.panel{position:static}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+aside.panel{min-width:0;overflow:hidden}
+input{min-width:0;max-width:100%}
+label{font-size:13px;font-weight:500;color:var(--muted)}
+input[type=number],input[type=date],input[type=text]{width:100%;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chip.out[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.warn{font-size:13px;color:var(--z6);margin:0}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--surface)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.plan{display:flex;flex-direction:column;gap:16px;min-width:0}
+.summary{display:flex;flex-direction:column;gap:12px}
+.timeline{display:flex;gap:3px;height:34px}
+.timeline div{flex:1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:14px;font-weight:600;color:#fff;min-width:0}
+.ph-base{background:var(--z2)} .ph-build{background:var(--z4)} .ph-spec{background:var(--z5)} .ph-recup{background:var(--z3)} .ph-race{background:var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+td.w{font-variant-numeric:tabular-nums;font-weight:600}
+.zdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.week{padding:0;overflow:hidden}
+.week-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.week-h .meta{font-size:13px;color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#fff;border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:3px;font-family:var(--body)}
+.days{display:flex;flex-direction:column}
+.day{border-bottom:1px solid var(--soft)}
+.day:last-child{border-bottom:0}
+.day>summary,.day>.rest{display:grid;grid-template-columns:86px minmax(0,1fr) 120px 62px;gap:12px;align-items:center;padding:9px 18px;list-style:none}
+.day>summary{cursor:pointer}
+.day>summary::-webkit-details-marker{display:none}
+.day>summary:hover{background:var(--soft)}
+.dname{font-size:13px;font-weight:600}
+.dname small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.stitle{font-weight:600;min-width:0}
+.stitle small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.rest .stitle{font-weight:400;color:var(--muted)}
+.dur{text-align:right;font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
+.prof{height:28px;width:100%;display:block}
+.tag{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.detail{padding:4px 18px 16px 116px;display:flex;flex-direction:column;gap:8px}
+.detail ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.detail p{margin:0;max-width:65ch}
+.race-row{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+@media (max-width:620px){
+  .day>summary,.day>.rest{grid-template-columns:62px minmax(0,1fr) 52px;padding:9px 14px}
+  .prof-cell{display:none}
+  .detail{padding:4px 14px 14px}
+  .week-h{padding:12px 14px}
+}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.tips div{min-width:0}
+.tips p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.tips h3{font-size:17px}
+.toast{font-size:13px;color:var(--muted)}
+.agebox{margin:0;font-size:14px;background:var(--soft);border-radius:8px;padding:10px 12px}
+.feel{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.feel span{font-size:13px;color:var(--muted);margin-right:4px}
+.chip.f-ok[aria-pressed="true"]{background:var(--z3);border-color:var(--z3);color:#fff}
+.chip.f-tired[aria-pressed="true"]{background:var(--z4);border-color:var(--z4);color:#14213D}
+.chip.f-rest[aria-pressed="true"]{background:var(--z6);border-color:var(--z6);color:#fff}
+.btn.sm{font-size:13px;padding:6px 10px}
+.banner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:10px 18px;background:color-mix(in srgb,var(--z4) 18%,transparent);border-bottom:1px solid var(--line);font-size:14px}
+.orig{font-size:12px;color:var(--muted)}
+.coach{display:flex;flex-direction:column;gap:12px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px 18px}
+.cgrp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.cgrp>span:first-child{font-size:13px;font-weight:600;min-width:84px}
+.cgrp input{width:76px}
+.verdict{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;border-radius:8px;padding:10px 12px;font-size:14px;border:1px solid var(--line)}
+.verdict b{font-family:var(--display);font-size:18px;color:#fff;border-radius:6px;padding:0 8px}
+.verdict span{flex:1 1 260px;min-width:0}
+.v-red b{background:var(--z6)} .v-orange b{background:var(--z5)} .v-green b{background:var(--z3)}
+.coachmsg{background:var(--soft);border-radius:8px;padding:10px 12px;font-size:14px}
+.coachmsg p{margin:2px 0 0;max-width:75ch}
+.logbox{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:8px}
+.chip.rpe{min-width:34px;text-align:center;padding:5px 6px}
+.chip.rpe[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mk.ok{color:var(--z3);font-weight:600} .mk.miss{color:var(--z6);font-weight:600}
+.wsum{padding:8px 18px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+.tiles{display:flex;flex-wrap:wrap;gap:10px}
+.chartwrap{position:relative;overflow-x:auto}
+.chart{width:100%;min-width:520px;height:auto;display:block}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--body)}
+.chart .lbl{fill:var(--ink);font-size:12px;font-weight:600;font-family:var(--body)}
+.chart .ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .today{stroke:var(--muted);stroke-dasharray:3 3}
+.chart .xh{stroke:var(--ink);stroke-width:1;opacity:.5}
+.tip{position:absolute;top:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.12);width:160px}
+#pmc{display:flex;flex-direction:column;gap:12px}
+#ask{display:flex;flex-direction:column;gap:10px}
+textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+.answer{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:12px 14px;font-size:14px;max-width:75ch}
+body.athlete .layout{grid-template-columns:minmax(0,1fr)}
+body.athlete aside.panel{display:none}
+.team{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.xch,.onb{display:flex;flex-direction:column;gap:10px}
+.onb p{margin:0}
+.xgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.xcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.xch textarea{font-size:13px}
+a.btn{text-decoration:none;display:inline-block}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="h-sub">Plan de Arthur · saison UFOLEP</div>
+      <h1 id="h-title">WattPlan</h1>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-label="Tes informations">
+      <div id="team" class="team"></div>
+      <h2 id="form-title">Ses informations</h2>
+      <div class="field"><label for="f-name">Prénom</label><input id="f-name" type="text"></div>
+      <div class="row2">
+        <div class="field"><label for="f-age">Âge</label><input id="f-age" type="number" min="16" max="90"></div>
+        <div class="field"><label for="f-weight">Poids (kg)</label><input id="f-weight" type="number" min="40" max="150" step="0.5"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="f-ftp">FTP actuelle (W)</label><input id="f-ftp" type="number" min="80" max="500"></div>
+        <div class="field"><label for="f-target">FTP objectif (W)</label><input id="f-target" type="number" min="80" max="500"></div>
+      </div>
+      <div class="field"><label for="f-start">Début du plan</label><input id="f-start" type="date"></div>
+      <div class="field"><label for="f-race">Date de la 1re course</label><input id="f-race" type="date"></div>
+      <div class="field">
+        <label id="l-trainer">Jours home trainer (2 à 4)</label>
+        <div class="chips" id="c-trainer" role="group" aria-labelledby="l-trainer"></div>
+      </div>
+      <div class="field">
+        <label id="l-out">Jour de la sortie dehors</label>
+        <div class="chips" id="c-out" role="group" aria-labelledby="l-out"></div>
+      </div>
+      <div class="field">
+        <label for="f-max">Durée max d'une séance trainer : <b id="v-max" class="num"></b></label>
+        <input id="f-max" type="range" min="40" max="60" step="5">
+      </div>
+      <div class="field">
+        <label for="f-outh">Durée de la sortie dehors : <b id="v-outh" class="num"></b></label>
+        <input id="f-outh" type="range" min="1" max="4" step="0.5">
+      </div>
+      <p class="warn" id="warn" hidden></p>
+      <p class="hint">Tout est enregistré dans ce navigateur. Après chaque test FTP, mets à jour ta FTP : toutes les puissances du plan se recalculent.</p>
+      <button class="btn ghost" id="b-reset" type="button">Réinitialiser cet athlète</button>
+    </aside>
+
+    <section class="plan" aria-label="Plan d'entraînement">
+      <div class="panel onb" id="onb" hidden>
+        <h2>Bienvenue sur WattPlan</h2>
+        <p>Ton coach t'a envoyé un message avec un code qui commence par <b>WPP1:</b>. Copie tout le message et colle-le ici.</p>
+        <textarea id="onb-code" rows="4" placeholder="Colle ici le message de ton coach"></textarea>
+        <p class="warn" id="onb-msg" role="status"></p>
+        <div class="actions"><button type="button" class="btn" id="onb-go">Charger mon plan</button><button type="button" class="btn ghost" id="onb-cancel" hidden>Annuler</button></div>
+      </div>
+      <div class="panel coach" id="check"></div>
+      <div class="panel xch" id="xch"></div>
+      <div class="panel summary">
+        <div class="actions" style="justify-content:space-between">
+          <h2 id="sum-title">Le plan</h2>
+          <div class="actions">
+            <button class="btn" id="b-zip" type="button">Toutes les séances Zwift + ERG (.zip)</button>
+            <button class="btn ghost" id="b-print" type="button">Version à imprimer (.html)</button>
+          </div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+        <div class="legend">
+          <span><i class="ph-base"></i>Fondation</span><span><i class="ph-build"></i>Développement</span>
+          <span><i class="ph-spec"></i>Spécifique course</span><span><i class="ph-recup"></i>Récupération + test</span>
+          <span><i class="ph-race"></i>Course</span>
+        </div>
+        <p class="agebox" id="agebox"></p>
+        <p class="hint" id="proj"></p>
+        <p class="toast" id="toast" role="status"></p>
+        <details>
+          <summary class="hint" style="cursor:pointer">Comment importer les séances dans Zwift</summary>
+          <ol class="hint" style="margin:6px 0 0;padding-left:18px">
+            <li>Télécharge le .zip et décompresse-le.</li>
+            <li>Tu peux aussi télécharger une seule séance : ouvre-la et appuie sur « Télécharger pour Zwift ». Le dossier ERG contient les mêmes séances en .erg (watts) et .mrc (% de FTP) pour les autres applis (TrainerRoad, Rouvy, MyWhoosh…).</li>
+            <li>Copie les fichiers .zwo dans <b>Documents › Zwift › Workouts › (ton numéro Zwift)</b>.</li>
+            <li>Relance Zwift : les séances apparaissent dans Entraînements › Custom Workouts. Ton Van Rysel D500 en mode ERG tiendra les watts tout seul.</li>
+            <li>Pour les tests FTP, utilise le test « Ramp Test » intégré à Zwift : il met ta FTP à jour automatiquement.</li>
+          </ol>
+        </details>
+      </div>
+
+      <div class="panel" id="pmc"></div>
+
+      <div class="panel" id="ask" hidden>
+        <h2>Demande à ton coach</h2>
+        <p class="hint">Le coach connaît ton plan, tes bilans et ta forme du matin.</p>
+        <div class="chips" id="ask-q">
+          <button type="button" class="chip" data-q="Fais le bilan de mes derniers jours et dis-moi comment aborder la suite.">Bilan de ma semaine</button>
+          <button type="button" class="chip" data-q="Je suis malade (rhume). Qu'est-ce que je fais de mes séances ?">Je suis malade</button>
+          <button type="button" class="chip" data-q="Je n'ai que 30 minutes aujourd'hui. Quelle séance je fais ?">Seulement 30 min</button>
+          <button type="button" class="chip" data-q="Comment je mange et je m'échauffe le jour de ma course UFOLEP ?">Jour de course</button>
+        </div>
+        <textarea id="ask-text" rows="3" placeholder="Pose ta question : une douleur, un imprévu, un doute sur une séance…"></textarea>
+        <div class="actions"><button type="button" class="btn" id="ask-go">Envoyer au coach</button></div>
+        <div class="answer" id="ask-out" role="status" hidden></div>
+      </div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:8px">Tes zones de puissance</h2>
+        <div class="tblwrap"><table id="zones"></table></div>
+      </div>
+
+      <div id="weeks" class="plan"></div>
+
+      <div class="panel">
+        <h2 style="margin-bottom:12px" id="tips-title">Les règles à 51 ans</h2>
+        <div class="tips" id="tips"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+const DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const DAYS_L=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const DEFAULTS={name:'Arthur',age:51,weight:75,ftp:200,target:240,start:'2026-11-16',race:'2027-01-10',trainer:[1,3,5],outdoor:6,maxMin:60,outH:2,feel:{},forceRecup:[],log:{},check:{},hrBase:null};
+/* Réglages selon l'âge : longueur du cycle (semaines de charge + 1 semaine légère), progression attendue, intensité VO2max */
+function ageProfile(a){
+  if(a>=55)return{cyc:3,gain:.009,vo2:-1,label:`${a} ans : 2 semaines de charge puis 1 semaine légère, VO2max un peu réduit, au moins 48 h entre deux séances dures`};
+  if(a>=40)return{cyc:4,gain:.011,vo2:0,label:`${a} ans : 3 semaines de charge puis 1 semaine légère, au moins 48 h entre deux séances dures`};
+  return{cyc:4,gain:.014,vo2:0,label:`${a} ans : 3 semaines de charge puis 1 semaine légère`};
+}
+const KEY='planftp:v1';
+const PH={base:'Fondation',build:'Développement',spec:'Spécifique course',recup:'Récupération + test',race:'Semaine de course'};
+const PHC={base:'var(--z2)',build:'var(--z4)',spec:'var(--z5)',recup:'var(--z3)',race:'var(--accent)'};
+const MODE=window.WP_MODE==='athlete'?'athlete':'coach';
+const ATHLETE_URL='https://gwadacycling-create.github.io/wattplan-athlete/';
+const TKEY='wattplan:team', AKEY='wattplan:athlete';
+let T=null, S=null, LAST=null, LAST_W=[];
+
+function fresh(){return Object.assign({},DEFAULTS,{feel:{},forceRecup:[],log:{},check:{}});}
+function load(){try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&v.ftp){const o=Object.assign(fresh(),v);o.feel=o.feel||{};o.forceRecup=o.forceRecup||[];o.log=o.log||{};o.check=o.check||{};return o;}}catch(e){}return fresh();}
+function norm(o){o=Object.assign(fresh(),o);['feel','log','check'].forEach(k=>o[k]=o[k]||{});o.forceRecup=o.forceRecup||[];return o;}
+function loadTeam(){try{const v=JSON.parse(localStorage.getItem(TKEY));if(v&&v.list&&Object.keys(v.list).length){Object.keys(v.list).forEach(k=>v.list[k]=norm(v.list[k]));if(!v.list[v.cur])v.cur=Object.keys(v.list)[0];return v;}}catch(e){}
+  const s0=load();s0.id=s0.id||'arthur';return{cur:s0.id,list:{[s0.id]:s0},coachTel:''};}
+function loadAthlete(){try{const v=JSON.parse(localStorage.getItem(AKEY));if(v&&v.ftp)return norm(v);}catch(e){}return null;}
+function save(){try{if(MODE==='athlete'){localStorage.setItem(AKEY,JSON.stringify(S));}else{T.list[T.cur]=S;localStorage.setItem(TKEY,JSON.stringify(T));}}catch(e){}}
+if(MODE==='athlete'){S=loadAthlete();}else{T=loadTeam();S=T.list[T.cur];}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pd=s=>{const[y,m,d]=(s||'').split('-').map(Number);return y?new Date(y,m-1,d):null;};
+const addD=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
+const dow=d=>(d.getDay()+6)%7;
+const fmt=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+const fmtL=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const W=p=>Math.round(S.ftp*p/5)*5;
+const dec=(n,k=1)=>n.toFixed(k).replace('.',',');
+const zoneOf=p=>p<.56?'z1':p<.76?'z2':p<.91?'z3':p<1.06?'z4':p<1.21?'z5':'z6';
+const mins=m=>{m=Math.round(m);if(m<60)return m+' min';const h=Math.floor(m/60),r=m%60;return h+' h'+(r?' '+String(r).padStart(2,'0'):'');};
+
+/* ---------- Séances ---------- */
+function trainerSessions(phase,lv,D,nDays){
+  const M=D-15, Wu={k:'w',d:10,lo:.45,hi:.75}, Cd={k:'c',d:5,lo:.45,hi:.65};
+  let s=[];
+  if(phase==='base'){
+    const L=[8,10,12][lv-1], n=Math.max(1,Math.min(3,Math.floor(M/(L+4))));
+    s.push({title:`Sweet spot ${n} × ${L} min`,goal:"Faire monter le seuil avec une fatigue modérée : c'est le travail le plus rentable quand on a moins d'une heure.",steps:[Wu,{k:'i',n,on:L,off:4,pon:.9,poff:.55},Cd]});
+    const tb=[10,12,15][lv-1], nb=Math.max(1,Math.min(2,Math.floor((M-5)/(tb+5))));
+    s.push({title:`Tempo ${nb} × ${tb} min`,goal:"Endurance musculaire : tenir une allure soutenue sans se mettre dans le rouge.",steps:[Wu,{k:'s',d:5,p:.65},{k:'i',n:nb,on:tb,off:5,pon:.82,poff:.6},Cd]});
+    const nf=Math.max(2,Math.min([4,5,6][lv-1],Math.floor((M-12)/5)));
+    s.push({title:`Force ${nf} × 2 min + sprints`,goal:"Force à basse cadence et vélocité : utile pour les relances en course.",steps:[Wu,{k:'i',n:nf,on:2,off:3,pon:.85,poff:.6,note:'cadence 55 à 60 tr/min, assis'},{k:'i',n:6,on:.25,off:1.75,pon:1.3,poff:.55,note:'sprint cadence 110 tr/min'},Cd]});
+  }else if(phase==='build'){
+    const L=[8,10,12][lv-1], n=Math.max(1,Math.min(3,Math.floor(M/(L+3))));
+    s.push({title:`Seuil ${n} × ${L} min`,goal:"Habituer le corps à rouler à ta FTP : c'est ce qui la fait monter.",steps:[Wu,{k:'i',n,on:L,off:3,pon:1,poff:.55},Cd]});
+    const nv=Math.max(2,Math.min([4,5,6][lv-1]+ageProfile(S.age).vo2,Math.floor(M/6)));
+    s.push({title:`VO2max ${nv} × 3 min`,goal:"Augmenter ton plafond : plus il est haut, plus ton seuil peut monter.",steps:[Wu,{k:'i',n:nv,on:3,off:3,pon:1.15,poff:.55},Cd]});
+    const Ls=[12,15,18][lv-1], ns=Math.max(1,Math.min(2,Math.floor(M/(Ls+4))));
+    s.push({title:`Sweet spot ${ns} × ${Ls} min`,goal:"Volume de travail sous le seuil, pour durer sur 1 h 30 à 2 h de course.",steps:[Wu,{k:'i',n:ns,on:Ls,off:4,pon:.92,poff:.55},Cd]});
+  }else if(phase==='spec'){
+    const k=[3,3,4][lv-1]; let nb=[2,3,3][lv-1]; while(nb>1&&nb*k*3+(nb-1)*4>M)nb--;
+    const st=[Wu]; for(let b=0;b<nb;b++){st.push({k:'i',n:k,on:2,off:1,pon:1.05,poff:.9});if(b<nb-1)st.push({k:'s',d:4,p:.55});} st.push(Cd);
+    s.push({title:`Over-under ${nb} × ${k*3} min`,goal:"Alterner au-dessus et juste sous le seuil, comme quand le peloton accélère puis se calme.",steps:st});
+    const r=[8,10,12][lv-1];
+    s.push({title:`30/30 : 2 séries × ${r}`,goal:"Supporter les attaques répétées sans exploser.",steps:[Wu,{k:'i',n:r,on:.5,off:.5,pon:1.3,poff:.55},{k:'s',d:5,p:.55},{k:'i',n:r,on:.5,off:.5,pon:1.3,poff:.55},Cd]});
+    const na=Math.max(3,Math.min([5,6,7][lv-1],Math.floor((M-8)/5)));
+    s.push({title:`Simulation course : ${na} attaques`,goal:"Rouler en tempo et répondre aux attaques, puis sprint final.",steps:[Wu,{k:'s',d:5,p:.75},{k:'i',n:na,on:1,off:4,pon:1.2,poff:.75,note:'attaque de 1 min, puis tempo'},{k:'s',d:.25,p:1.5,note:'sprint final'},{k:'s',d:2,p:.55},Cd]});
+  }else if(phase==='recup'){
+    s.push({title:'Endurance + vélocité',goal:"Faire tourner les jambes sans fatigue.",steps:[{k:'w',d:8,lo:.45,hi:.65},{k:'s',d:10,p:.65},{k:'i',n:3,on:1,off:3,pon:.7,poff:.6,note:'cadence 105 à 110 tr/min'},{k:'s',d:5,p:.65},Cd]});
+    s.push({title:'Récupération active',goal:"Très facile. Si tu te sens fatigué, remplace par du repos.",steps:[{k:'w',d:8,lo:.45,hi:.6},{k:'s',d:22,p:.6},Cd]});
+    s.push({test:true,title:'Test FTP (Ramp Test Zwift)',goal:"Fais-le reposé. Mets ensuite ta nouvelle FTP dans le formulaire : tout le plan se recalcule.",steps:[]});
+  }else if(phase==='race'){
+    s.push({title:'Rappel d\'intensité',goal:"Garder du tonus sans fatigue avant la course.",steps:[Wu,{k:'s',d:15,p:.65},{k:'i',n:3,on:1,off:3,pon:1.1,poff:.6},Cd]});
+    s.push({title:'Endurance + 3 sprints',goal:"Court et facile, avec quelques accélérations.",steps:[Wu,{k:'s',d:12,p:.65},{k:'i',n:3,on:.5,off:2.5,pon:1.3,poff:.6},Cd]});
+    s.push({title:'Déblocage veille de course',goal:"30 min tranquilles avec 3 accélérations courtes pour réveiller les jambes.",steps:[{k:'w',d:8,lo:.45,hi:.65},{k:'s',d:8,p:.6},{k:'i',n:3,on:.25,off:2.75,pon:1.2,poff:.6},{k:'c',d:5,lo:.45,hi:.6}]});
+  }
+  if(nDays===2) s=phase==='recup'?[s[0],s[2]]:phase==='race'?[s[0],s[2]]:[s[0],s[1]];
+  if(nDays===4) s.splice(phase==='race'?2:s.length-(phase==='recup'?1:0),0,{title:`Endurance Z2 ${mins(phase==='race'||phase==='recup'?35:D)}`,goal:"Endurance facile, cadence 85 à 95 tr/min.",steps:[{k:'w',d:8,lo:.45,hi:.65},{k:'s',d:(phase==='race'||phase==='recup'?35:D)-13,p:.65},Cd]});
+  return s;
+}
+function outdoorRide(phase,H){
+  const m=H*60;
+  if(phase==='base')return{title:`Sortie endurance ${mins(m)}`,goal:`Zone 2 (${W(.56)} à ${W(.75)} W), cadence 85 à 95 tr/min. Mange et bois toutes les 30 à 45 min.`,min:m,if:.68};
+  if(phase==='build')return{title:`Sortie ${mins(m)} avec 2 × 15 min tempo`,goal:`Endurance Z2, avec 2 blocs de 15 min en tempo (${W(.76)} à ${W(.87)} W) dans la seconde moitié.`,min:m,if:.72};
+  if(phase==='spec')return{title:`Sortie en groupe ${mins(m)}`,goal:"Idéalement avec le club : prends des relais, suis les accélérations, et termine par un sprint. C'est la meilleure répétition de course.",min:m,if:.78};
+  if(phase==='recup')return{title:`Sortie tranquille ${mins(Math.min(m,90))}`,goal:`Zone 1 à 2 seulement (moins de ${W(.75)} W). Pas d'effort.`,min:Math.min(m,90),if:.62};
+  return{title:'Sortie courte',goal:'1 h facile.',min:60,if:.6};
+}
+/* Jour de fatigue : "tired" = version facile, "rest" = repos */
+function adjust(day,f){
+  if(!f)return day;
+  day.feel=f; day.orig=day.s.title;
+  if(f==='rest'){day.kind='frest';day.s={title:'Repos (fatigue)',goal:"Tu as noté que tu étais épuisé : pas de vélo aujourd'hui. Dors, mange bien, et reprends normalement à la séance suivante.",steps:[]};return day;}
+  if(day.kind==='out'){day.s={title:'Sortie tranquille 1 h (fatigue)',goal:`Version facile : zone 1 à 2 seulement (moins de ${W(.75)} W), sur du plat.`,min:60,if:.6};return day;}
+  day.s={title:'Récupération active 30 min (fatigue)',goal:"Version facile de la séance prévue : tourner les jambes sans effort. Si ça ne passe pas au bout de 10 min, arrête-toi.",steps:[{k:'w',d:5,lo:.4,hi:.55},{k:'s',d:20,p:.55},{k:'c',d:5,lo:.4,hi:.5}]};
+  return day;
+}
+const sessMin=s=>s.steps.reduce((a,x)=>a+(x.k==='i'?x.n*(x.on+x.off):x.d),0)||(s.test?30:0);
+
+function stepText(x){
+  const n=x.note?`, ${x.note}`:'';
+  if(x.k==='w')return`Échauffement ${mins(x.d)} progressif (${W(x.lo)} à ${W(x.hi)} W)`;
+  if(x.k==='c')return`Retour au calme ${mins(x.d)} (${W(x.hi)} à ${W(x.lo)} W)`;
+  if(x.k==='s')return`${dur(x.d)} à ${W(x.p)} W (${Math.round(x.p*100)} %)${n}`;
+  return`${x.n} × (${dur(x.on)} à ${W(x.pon)} W / ${dur(x.off)} à ${W(x.poff)} W)${n}`;
+}
+const dur=m=>m<1?Math.round(m*60)+' s':(Number.isInteger(m)?m+' min':Math.floor(m)+' min '+Math.round((m%1)*60)+' s');
+
+function profile(s){
+  const segs=[];
+  s.steps.forEach(x=>{
+    if(x.k==='w'||x.k==='c'){const parts=4;for(let i=0;i<parts;i++){const t=i/(parts-1);segs.push([x.d/parts,x.k==='w'?x.lo+(x.hi-x.lo)*t:x.hi-(x.hi-x.lo)*t]);}}
+    else if(x.k==='s')segs.push([x.d,x.p]);
+    else for(let i=0;i<x.n;i++){segs.push([x.on,x.pon]);segs.push([x.off,x.poff]);}
+  });
+  const tot=segs.reduce((a,b)=>a+b[0],0)||1;let xpos=0;
+  const r=segs.map(([d,p])=>{const h=Math.min(1,p/1.6)*28,o=`<rect x="${(xpos/tot*100).toFixed(2)}" y="${(28-h).toFixed(1)}" width="${(d/tot*100+.15).toFixed(2)}" height="${h.toFixed(1)}" fill="var(--${zoneOf(p)})"/>`;xpos+=d;return o;}).join('');
+  return`<svg class="prof" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">${r}</svg>`;
+}
+function mainZone(s){let best=0,z='z2';s.steps.forEach(x=>{const p=x.k==='i'?x.pon:x.k==='s'?x.p:0;if(p>best){best=p;z=zoneOf(p);}});return z;}
+
+/* ---------- Construction du plan ---------- */
+function build(){
+  const start=pd(S.start), race=pd(S.race); const warn=[];
+  if(!start||!race||race<=start){return{error:"Choisis une date de course après la date de début."};}
+  const mon=addD(start,-dow(start));
+  const N=Math.min(30,Math.floor((race-mon)/864e5/7)+1);
+  if(N<3)return{error:"Il faut au moins 3 semaines entre le début du plan et la course."};
+  const tdays=[...S.trainer].sort((a,b)=>a-b);
+  for(let i=0;i<tdays.length;i++){if(tdays.includes(tdays[i]+1))warn.push(`${DAYS_L[tdays[i]]} et ${DAYS_L[tdays[i]+1]} se suivent : à 51 ans, laisse si possible un jour de repos entre deux séances.`);}
+  if(tdays.includes(S.outdoor))warn.push("La sortie dehors tombe un jour de home trainer : choisis un autre jour.");
+  const nSpec=Math.max(2,Math.round(N*0.2));
+  CO=coachState();
+  const AP=ageProfile(S.age);
+  const weeks=[];let lv=0, since=0;
+  for(let i=0;i<N;i++){
+    let ph, forced=false;
+    if(i===N-1)ph='race';
+    else if(S.forceRecup.includes(i)){ph='recup';forced=true;}
+    else if(since>=AP.cyc-1&&i<N-2)ph='recup';
+    else if(i>=N-1-nSpec)ph='spec';
+    else if(i/(N-1)<0.25)ph='base';
+    else ph='build';
+    if(ph==='recup'||ph==='race'){lv=0;since=0;}else{lv=Math.min(AP.cyc-1,lv+1);since++;}
+    const wkStart=addD(mon,i*7);
+    const sess=trainerSessions(ph,Math.max(1,lv),S.maxMin,tdays.length);
+    if(i===0)sess[0]={test:true,title:'Test FTP de départ (Ramp Test Zwift)',goal:"Fais-le reposé, avec un ventilateur. Mets le résultat dans le formulaire : tout le plan se recalcule.",steps:[]};
+    const days=[];let si=0,restDone=false;
+    for(let d=0;d<7;d++){
+      const date=addD(wkStart,d);
+      if(date<start){days.push({d,date,kind:'none'});continue;}
+      if(iso(date)===S.race){days.push({d,date,kind:'race'});continue;}
+      if(date>race){days.push({d,date,kind:'none'});continue;}
+      const f=S.feel[iso(date)];
+      if(tdays.includes(d)&&si<sess.length){let s0=sess[si++];if(CO.f!==1&&iso(date)>TODAY&&!s0.test)s0=scaleS(s0,CO.f);days.push(adjust({d,date,kind:'trainer',s:s0},f));continue;}
+      if(d===S.outdoor&&ph!=='race'){days.push(adjust({d,date,kind:'out',s:outdoorRide(ph,S.outH)},f));continue;}
+      const renfo=!restDone&&(ph==='base'||ph==='build')&&!tdays.includes(d);
+      if(renfo)restDone=true;
+      days.push({d,date,kind:'rest',renfo});
+    }
+    const vol=days.reduce((a,x)=>a+(x.kind==='trainer'?sessMin(x.s):x.kind==='out'?x.s.min:0),0);
+    const tired=days.filter(x=>x.feel).length;
+    weeks.push({i,ph,lv,wkStart,days,vol,forced,tired});
+  }
+  const charge=weeks.filter(w=>['base','build','spec'].includes(w.ph)).length;
+  const g=AP.gain;
+  const proj=S.ftp*Math.pow(1+g,charge);
+  const needCharge=S.target>S.ftp?Math.log(S.target/S.ftp)/Math.log(1+g):0;
+  const needWeeks=Math.ceil(needCharge*4/3);
+  const pmc=computePMC(weeks,start,race);
+  return{weeks,N,proj,needWeeks,warn,mon,pmc};
+}
+
+/* ---------- Le coach : bilans, adaptation, charge ---------- */
+const TODAY=iso(new Date());
+let CO={f:1,msg:'',missed:0,n:0,avg:0};
+const ZRPE={z1:2,z2:3,z3:6,z4:7,z5:8,z6:9};
+function expRPE(x){
+  if(!x||!x.s)return 5;
+  if(x.kind==='out')return x.s.if>=.78?6:x.s.if<=.62?3:4;
+  if(x.s.test)return 9;
+  return ZRPE[mainZone(x.s)]||5;
+}
+function scaleS(s,f){
+  const k=v=>v>=.76?Math.round(v*f*100)/100:v;
+  return Object.assign({},s,{coach:true,steps:s.steps.map(x=>{const y=Object.assign({},x);
+    if(y.k==='s')y.p=k(y.p);if(y.k==='i'){y.pon=k(y.pon);y.poff=k(y.poff);}if(y.k==='w'||y.k==='c'){y.hi=k(y.hi);}return y;}),
+    goal:s.goal+` Intensité ajustée par le coach (${f<1?'−':'+'}${Math.round(Math.abs(1-f)*100)} %) d'après tes derniers bilans.`});
+}
+function coachState(){
+  const t=pd(TODAY), d14=iso(addD(t,-14)), d7=iso(addD(t,-7));
+  const L=Object.entries(S.log).filter(([k])=>k>d14&&k<=TODAY);
+  const done=L.filter(([,v])=>v.done&&v.rpe&&v.exp);
+  const missed=L.filter(([k,v])=>v.done===false&&k>d7).length;
+  const n=done.length, avg=n?done.reduce((a,[,v])=>a+(v.rpe-v.exp),0)/n:0;
+  let f=1,msg='';
+  if(n>=2&&avg>=1.5){f=.97;msg=`Tes ${n} dernières séances ont été plus dures que prévu (en moyenne +${dec(avg,1)} point d'effort). J'ai baissé l'intensité des prochaines séances de 3 %. Si ça continue, on fera une semaine légère.`;}
+  else if(n>=2&&avg<=-2){f=1.02;msg=`Tes ${n} dernières séances ont paru faciles (en moyenne ${dec(avg,1)} point d'effort). J'ai monté l'intensité de 2 %. Pense aussi à refaire un test FTP : ta FTP a sans doute monté.`;}
+  else if(n>=2)msg=`Tes ${n} dernières séances sont au bon niveau d'effort. On continue comme prévu.`;
+  if(missed>=2)msg+=(msg?' ':'')+`Tu as manqué ${missed} séances cette semaine : on ne rattrape pas, on reprend simplement le plan.`;
+  return{f,msg,missed,n,avg};
+}
+function tssOf(x){
+  if(x.kind==='race')return 130;
+  if(x.kind==='trainer'){if(x.s.test)return 45;
+    return Math.round(x.s.steps.reduce((a,y)=>{const seg=(d,p)=>d/60*p*p*100;
+      if(y.k==='i')return a+y.n*(seg(y.on,y.pon)+seg(y.off,y.poff));
+      if(y.k==='s')return a+seg(y.d,y.p);return a+seg(y.d,(y.lo+y.hi)/2);},0));}
+  if(x.kind==='out')return Math.round(x.s.min/60*x.s.if*x.s.if*100);
+  return 0;
+}
+function computePMC(weeks,start,race){
+  const days=[];let ctl=30,atl=30;
+  weeks.forEach(w=>w.days.forEach(x=>{if(x.kind==='none')return;const k=iso(x.date);
+    const lg=S.log[k];let tss=tssOf(x);if(lg&&lg.done===false)tss=0;
+    const tsb=ctl-atl; ctl+=(tss-ctl)/42; atl+=(tss-atl)/7;
+    days.push({k,date:x.date,tss,ctl,atl,tsb});}));
+  return days;
+}
+function sessionScore(c){
+  if(!c)return null;let sc=(c.sleep??1)+(c.legs??1)+(c.motiv??1);
+  if(c.hr&&S.hrBase){const dlt=c.hr-S.hrBase;if(dlt>=7)sc-=2;else if(dlt>=4)sc-=1;}
+  return sc;
+}
+
+/* ---------- Rendu ---------- */
+function renderForm(){
+  if(!S)return;
+  $('f-name').value=S.name;$('f-age').value=S.age;$('f-weight').value=S.weight;$('f-ftp').value=S.ftp;$('f-target').value=S.target;
+  $('f-start').value=S.start;$('f-race').value=S.race;$('f-max').value=S.maxMin;$('f-outh').value=S.outH;
+  $('c-trainer').innerHTML=DAYS.map((d,i)=>`<button type="button" class="chip" id="t-${i}" aria-pressed="${S.trainer.includes(i)}" data-d="${i}">${d}</button>`).join('');
+  $('c-out').innerHTML=DAYS.map((d,i)=>`<button type="button" class="chip out" id="o-${i}" aria-pressed="${S.outdoor===i}" data-d="${i}">${d}</button>`).join('');
+}
+function render(){
+  document.body.classList.toggle('athlete',MODE==='athlete');
+  const noPlan=MODE==='athlete'&&!S;
+  $('onb').hidden=!noPlan&&!SHOW_ONB; document.querySelectorAll('section.plan>.panel:not(#onb), #weeks, header .stats').forEach(el=>el.hidden=noPlan);
+  if(noPlan){$('h-sub').textContent='Ton plan d\'entraînement';return;}
+  $('v-max').textContent=S.maxMin+' min';$('v-outh').textContent=mins(S.outH*60);
+  const name=S.name||'cycliste';
+  $('h-sub').textContent='Plan de '+name+' · saison UFOLEP';
+  const P=build(); LAST=P;
+  const wkg=S.ftp/S.weight, twkg=S.target/S.weight;
+  $('tips-title').textContent=`Les règles à ${S.age} ans`;
+  $('agebox').textContent='Adapté à '+ageProfile(S.age).label+'. Si tu es fatigué un jour, ouvre la séance et choisis « Fatigué » ou « Épuisé » : le plan s\'adapte.';
+  $('stats').innerHTML=`
+    <div class="stat"><b>${S.ftp} W</b><span>FTP actuelle · ${dec(wkg,2)} W/kg</span></div>
+    <div class="stat hl"><b>${S.target} W</b><span>Objectif · ${dec(twkg,2)} W/kg</span></div>
+    ${P.error?'':`<div class="stat"><b>≈ ${Math.round(P.proj/5)*5} W</b><span>Estimation à la 1re course</span></div>
+    <div class="stat"><b>${P.N}</b><span>semaines jusqu'au ${fmt(pd(S.race))}</span></div>`}`;
+  const warnEl=$('warn');
+  if(P.error){warnEl.hidden=false;warnEl.textContent=P.error;$('weeks').innerHTML='';$('timeline').innerHTML='';$('proj').textContent='';return;}
+  warnEl.hidden=!P.warn.length;warnEl.textContent=P.warn.join(' ');
+  $('sum-title').textContent=`${P.N} semaines, ${S.trainer.length} séances trainer + 1 sortie`;
+  $('timeline').innerHTML=P.weeks.map(w=>`<div class="ph-${w.ph}" title="Semaine ${w.i+1} : ${PH[w.ph]}">${w.i+1}</div>`).join('');
+  const w35=Math.round(3.5*S.weight), kg35=S.target/3.5;
+  const reach=addD(pd(S.start),P.needWeeks*7);
+  $('proj').innerHTML=S.target>S.ftp?`Estimation prudente pour ton âge (environ +1 % de FTP par semaine de charge) : <b>≈ ${Math.round(P.proj/5)*5} W</b> à la première course. Pour atteindre ${S.target} W, compte environ <b>${P.needWeeks} semaines</b> d'entraînement régulier (vers ${fmtL(reach)}) : la saison continue après le ${fmt(pd(S.race))}, tu peux prolonger le plan. Pour 3,5 W/kg il faut ${w35} W à ${dec(S.weight,1)} kg, ou ${S.target} W à ${dec(kg35,1)} kg.`:'Ton objectif est déjà atteint : augmente-le.';
+  renderZones();
+  LAST_W=P.weeks;
+  const open=[...document.querySelectorAll('#weeks details[open]')].map(d=>d.dataset.k);
+  $('weeks').innerHTML=P.weeks.map(renderWeek).join('');
+  document.querySelectorAll('#weeks details').forEach(d=>{if(open.includes(d.dataset.k))d.open=true;});
+  renderTips();
+  renderCheck();
+  renderPMC(P);
+  renderXch();
+  if(MODE==='athlete'){$('h-sub').textContent='Plan de '+(S.name||'cycliste')+' · préparé par ton coach';$('ask').hidden=true;}
+}
+/* ---------- Échanges coach ↔ athlète (codes à envoyer par WhatsApp) ---------- */
+const b64e=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+function b64d(str,prefix){const m=String(str).match(new RegExp(prefix+'([A-Za-z0-9+/=]+)'));if(!m)return null;try{return JSON.parse(decodeURIComponent(escape(atob(m[1]))));}catch(e){return null;}}
+const PLAN_KEYS=['id','name','age','weight','ftp','target','start','race','trainer','outdoor','maxMin','outH','forceRecup'];
+function recent(obj,days){const lim=iso(addD(pd(TODAY),-days));const o={};Object.keys(obj||{}).forEach(k=>{if(k>lim&&k<=TODAY)o[k]=obj[k];});return o;}
+function planCode(){const o={v:1,tel:T.coachTel||''};PLAN_KEYS.forEach(k=>o[k]=S[k]);return'WPP1:'+b64e(o);}
+function planMessage(){
+  return`Salut ${S.name||''} ! Voici ton plan d'entraînement WattPlan.\n\n1. Ouvre ce lien : ${ATHLETE_URL||'(lien de la page athlète)'}\n2. Colle ce code quand la page te le demande :\n\n${planCode()}\n\nChaque matin, fais ton check. Après chaque séance, note ton effort ressenti et appuie sur « Envoyer au coach ».`;
+}
+function bilanCode(){return'WPB1:'+b64e({v:1,id:S.id,name:S.name,sent:TODAY,log:recent(S.log,21),check:recent(S.check,21),feel:recent(S.feel,21),hrBase:S.hrBase||null,forceRecup:S.forceRecup});}
+function bilanMessage(){
+  const lines=[`Bilan WattPlan · ${S.name||'athlète'} · ${fmt(pd(TODAY))}`];
+  const c=S.check[TODAY];
+  if(c&&c.sleep!=null)lines.push(`Check du matin : sommeil ${['mauvais','moyen','bon'][c.sleep]}, jambes ${['lourdes','normales','fraîches'][c.legs]??'?'}, motivation ${['faible','normale','forte'][c.motiv]??'?'}${c.hr?', FC au réveil '+c.hr:''}`);
+  const L=Object.entries(recent(S.log,7)).sort();
+  if(L.length){lines.push('Séances des 7 derniers jours :');L.forEach(([k,v])=>{const f=findDay(k);const t=f&&f.x.s?f.x.s.title:'séance';
+    lines.push(`- ${DAYS[dow(pd(k))]} ${fmt(pd(k))} ${t} : ${v.done?'faite'+(v.rpe?`, effort ${v.rpe}/10 (attendu ${v.exp})`:''):'non faite'}`);});}
+  else lines.push('Pas encore de séance notée cette semaine.');
+  const F=Object.entries(recent(S.feel,7));if(F.length)lines.push('Fatigue notée : '+F.map(([k,v])=>`${fmt(pd(k))} ${v==='rest'?'épuisé':'fatigué'}`).join(', '));
+  lines.push('','Code pour WattPlan (à coller par le coach) :',bilanCode());
+  return lines.join('\n');
+}
+async function copyText(t,ta){try{await navigator.clipboard.writeText(t);toast('Message copié : colle-le dans WhatsApp ou dans un mail.');}catch(e){if(ta){ta.focus();ta.select();}toast('Copie automatique impossible ici : le message est sélectionné, fais Ctrl+C (ou appui long → Copier).');}}
+const waLink=(tel,txt)=>'https://wa.me/'+String(tel||'').replace(/[^0-9]/g,'')+'?text='+encodeURIComponent(txt);
+function importBilan(txt){
+  const o=b64d(txt,'WPB1:');
+  if(!o){toast("Je ne trouve pas de code de bilan dans ce texte. Colle le message complet reçu de l'athlète.");return;}
+  let id=o.id; if(!T.list[id]){const byName=Object.values(T.list).find(a=>(a.name||'').toLowerCase()===(o.name||'').toLowerCase());if(byName)id=byName.id;}
+  if(!T.list[id]){toast(`Le bilan vient de ${o.name||'un athlète'}, qui n'est pas dans ta liste. Crée-le d'abord ou vérifie le code.`);return;}
+  const a=T.list[id];
+  a.log=Object.assign(a.log||{},o.log||{});a.check=Object.assign(a.check||{},o.check||{});a.feel=Object.assign(a.feel||{},o.feel||{});
+  if(o.hrBase)a.hrBase=o.hrBase; if(Array.isArray(o.forceRecup))a.forceRecup=[...new Set([...(a.forceRecup||[]),...o.forceRecup])];
+  a.lastBilan=o.sent; T.cur=id; S=a; save(); renderForm(); render();
+  toast(`Bilan de ${a.name} importé (${Object.keys(o.log||{}).length} séances, ${Object.keys(o.check||{}).length} checks). Le plan est ajusté.`);
+}
+function importPlan(txt){
+  const o=b64d(txt,'WPP1:');
+  if(!o||!o.ftp){$('onb-msg').textContent="Ce n'est pas un code de plan valide. Copie le message complet envoyé par ton coach.";return false;}
+  $('onb-msg').textContent='';
+  const keep=S&&S.id===o.id?S:fresh();
+  S=Object.assign(keep,{tel:o.tel||''});PLAN_KEYS.forEach(k=>{if(o[k]!==undefined)S[k]=o[k];});
+  save();return true;
+}
+function renderXch(){
+  if(MODE==='athlete'){
+    const msg=bilanMessage();
+    $('xch').innerHTML=`<h2>Envoyer au coach</h2><p class="hint">Fais-le après ton check du matin ou après ta séance. Le message contient un code que ton coach colle dans son WattPlan.</p>
+    <textarea id="x-msg" rows="6" readonly>${esc(msg)}</textarea>
+    <div class="actions"><a class="btn" id="x-wa" href="${esc(waLink(S.tel,msg))}" target="_blank" rel="noopener">Ouvrir WhatsApp</a><button type="button" class="btn ghost" id="x-copy">Copier le message</button><button type="button" class="btn ghost sm" id="b-newcode">J'ai reçu un nouveau code du coach</button></div>
+    <p class="hint">${S.tel?'WhatsApp s\'ouvre directement sur la conversation avec ton coach.':'Ton coach n\'a pas mis son numéro : choisis-le dans WhatsApp, ou envoie le message par mail.'} Si WhatsApp ne s'ouvre pas, copie le message et colle-le toi-même.</p>`;
+    return;
+  }
+  const opts=Object.values(T.list).map(a=>`<option value="${esc(a.id)}"${a.id===T.cur?' selected':''}>${esc(a.name||'Sans nom')}</option>`).join('');
+  $('team').innerHTML=`<div class="field"><label for="f-athlete">Athlète</label><select id="f-athlete">${opts}</select></div>
+  <div class="actions"><button type="button" class="btn ghost sm" id="b-new">+ Nouvel athlète</button>${Object.keys(T.list).length>1?`<button type="button" class="btn ghost sm" id="b-del">Supprimer</button>`:''}</div>
+  <div id="del-confirm" hidden class="hint">Supprimer ${esc(S.name||'cet athlète')} et tous ses bilans ? <button type="button" class="btn sm" id="b-del-yes">Oui, supprimer</button> <button type="button" class="btn ghost sm" id="b-del-no">Annuler</button></div>
+  <div class="field"><label for="f-tel">Ton numéro WhatsApp de coach</label><input id="f-tel" type="text" inputmode="tel" placeholder="ex. +590 690 12 34 56" value="${esc(T.coachTel||'')}"></div>`;
+  const pm=planMessage();
+  $('xch').innerHTML=`<h2>Échanges avec ${esc(S.name||"l'athlète")}</h2>
+  <div class="xgrid"><div class="xcol"><h3>1. Envoyer le plan</h3><p class="hint">À faire au début, puis après chaque changement (nouvelle FTP, autres jours…).</p>
+  <textarea id="x-plan" rows="5" readonly>${esc(pm)}</textarea>
+  <div class="actions"><a class="btn sm" href="${esc(waLink('',pm))}" target="_blank" rel="noopener">Envoyer par WhatsApp</a><button type="button" class="btn ghost sm" id="x-pcopy">Copier</button></div></div>
+  <div class="xcol"><h3>2. Recevoir un bilan</h3><p class="hint">Colle ici le message reçu de l'athlète${S.lastBilan?` (dernier bilan reçu le ${fmt(pd(S.lastBilan))})`:''}.</p>
+  <textarea id="x-in" rows="5" placeholder="Bilan WattPlan · … WPB1:…"></textarea>
+  <div class="actions"><button type="button" class="btn sm" id="x-import">Importer le bilan</button></div></div></div>`;
+}
+
+/* ---------- Coach : affichage ---------- */
+function todayDay(){const f=findDay(TODAY);return f?f.x:null;}
+function renderCheck(){
+  const c=S.check[TODAY]||{}, x=todayDay();
+  const g=(key,label,opts)=>`<div class="cgrp"><span>${label}</span>${opts.map((t,v)=>`<button type="button" class="chip" aria-pressed="${c[key]===v}" data-check="${key}" data-v="${v}">${t}</button>`).join('')}</div>`;
+  let today='Pas de séance prévue aujourd\'hui.';
+  const isSess=x&&(x.kind==='trainer'||x.kind==='out');
+  if(x&&x.kind==='race')today='<b>Jour de course.</b>';
+  else if(isSess)today=`Au programme : <b>${esc(x.s.title)}</b> (${mins(x.kind==='out'?x.s.min:sessMin(x.s))}).`;
+  else if(x&&x.kind==='frest')today='Repos (fatigue) aujourd\'hui.';
+  let verdict='';
+  const ready=c.sleep!=null&&c.legs!=null&&c.motiv!=null;
+  if(ready){
+    const sc=sessionScore(c);
+    let cls,txt,act='';
+    if(sc<=2){cls='v-red';txt='Ton corps demande du repos.'+(isSess?' Je te conseille la version facile, ou un repos complet si tu te sens vraiment mal.':' Profite du repos, couche-toi tôt.');
+      if(isSess)act=`<button type="button" class="btn sm" data-feel="tired" data-date="${TODAY}">Version facile</button><button type="button" class="btn ghost sm" data-feel="rest" data-date="${TODAY}">Repos complet</button>`;}
+    else if(sc<=4){cls='v-orange';txt=isSess?'Forme moyenne. Fais la séance avec 5 min d\'échauffement en plus. Si les watts ne passent pas au 2e effort, arrête les intervalles et termine en endurance.':'Forme moyenne : le repos d\'aujourd\'hui tombe bien.';}
+    else{cls='v-green';txt=isSess?'Feu vert : fais la séance prévue.':'Tu es en forme : garde cette énergie pour la prochaine séance.';}
+    if(c.hr&&S.hrBase&&c.hr-S.hrBase>=7)txt+=` Ta FC au repos est ${c.hr-S.hrBase} battements au-dessus de d'habitude : signe de fatigue ou de début de maladie.`;
+    verdict=`<div class="verdict ${cls}"><b>${cls==='v-red'?'Rouge':cls==='v-orange'?'Orange':'Vert'}</b><span>${txt}</span>${act?`<div class="actions">${act}</div>`:''}</div>`;
+  }
+  $('check').innerHTML=`<div class="actions" style="justify-content:space-between"><h2>Check du matin</h2><span class="hint num">${fmtL(pd(TODAY))}</span></div>
+  <p class="hint" style="font-size:14px;color:var(--ink)">${today}</p>
+  <div class="cgrid">${g('sleep','Sommeil',['Mauvais','Moyen','Bon'])}${g('legs','Jambes',['Lourdes','Normales','Fraîches'])}${g('motiv','Motivation',['Faible','Normale','Forte'])}
+  <div class="cgrp"><span>FC au réveil</span><input id="c-hr" type="number" min="30" max="120" placeholder="ex. 52" value="${c.hr||''}" aria-label="Fréquence cardiaque au réveil"><span class="hint">habituelle</span><input id="c-hrbase" type="number" min="30" max="120" placeholder="ex. 50" value="${S.hrBase||''}" aria-label="Fréquence cardiaque habituelle au repos"></div></div>
+  ${verdict}
+  <div class="coachmsg"><b>Le mot du coach</b><p>${esc(CO.msg||"Après chaque séance, ouvre-la et note ton effort ressenti de 1 à 10. Je compare avec l'effort attendu et j'ajuste les séances suivantes, comme le ferait un entraîneur.")}</p></div>`;
+}
+function logBar(x){
+  const k=iso(x.date); if(k>TODAY)return'';
+  const lg=S.log[k]||{}, exp=expRPE(x);
+  const rpe=lg.done?`<div class="feel"><span>Effort ressenti (attendu ${exp}/10) :</span>${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" class="chip rpe" aria-pressed="${lg.rpe===n}" data-rpe="${n}" data-exp="${exp}" data-date="${k}">${n}</button>`).join('')}</div><p class="hint">1 = très facile · 5 = soutenu · 7 = dur · 9 = presque à fond · 10 = maximal</p>`:'';
+  return`<div class="logbox"><div class="feel"><span>Bilan de la séance :</span><button type="button" class="chip f-ok" aria-pressed="${lg.done===true}" data-log="done" data-exp="${exp}" data-date="${k}">Faite</button><button type="button" class="chip f-rest" aria-pressed="${lg.done===false}" data-log="miss" data-date="${k}">Pas faite</button></div>${rpe}</div>`;
+}
+function logMark(x){
+  const lg=S.log[iso(x.date)];if(!lg)return'';
+  if(lg.done===false)return' · <span class="mk miss">non faite</span>';
+  return' · <span class="mk ok">faite'+(lg.rpe?`, effort ${lg.rpe}/10`:'')+'</span>';
+}
+function weekSummary(w){
+  const S1=w.days.filter(x=>x.kind==='trainer'||x.kind==='out'), L=S1.map(x=>S.log[iso(x.date)]).filter(Boolean);
+  if(!L.length)return'';
+  const done=L.filter(l=>l.done), r=done.filter(l=>l.rpe);
+  const a=r.length?r.reduce((s,l)=>s+l.rpe,0)/r.length:0, e=r.length?r.reduce((s,l)=>s+l.exp,0)/r.length:0;
+  return`<div class="wsum num">Bilan : ${done.length}/${S1.length} séances faites${r.length?` · effort moyen ${dec(a,1)}/10 (attendu ${dec(e,1)})`:''}</div>`;
+}
+function renderPMC(P){
+  const D=P.pmc;if(!D.length){$('pmc').innerHTML='';return;}
+  const Wd=700,H=210,l=34,r=86,t=12,b=26, n=D.length;
+  const ymax=Math.ceil(Math.max(...D.map(d=>Math.max(d.ctl,d.atl)))/10)*10+10;
+  const X=i=>l+(Wd-l-r)*i/(n-1), Y=v=>t+(H-t-b)*(1-v/ymax);
+  const path=key=>D.map((d,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(d[key]).toFixed(1)).join(' ');
+  let grid='';for(let v=0;v<=ymax;v+=Math.max(10,Math.round(ymax/40)*10)){grid+=`<line x1="${l}" x2="${Wd-r}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${l-6}" y="${Y(v)+4}" class="ax" text-anchor="end">${v}</text>`;}
+  let xl='';D.forEach((d,i)=>{if(d.date.getDay()===1&&i<n-3)xl+=`<text x="${X(i)}" y="${H-8}" class="ax" text-anchor="middle">${fmt(d.date)}</text>`;});
+  const ti=D.findIndex(d=>d.k===TODAY), last=D[n-1];
+  const tl=ti>=0?`<line x1="${X(ti)}" x2="${X(ti)}" y1="${t}" y2="${H-b}" class="today"/><text x="${X(ti)+4}" y="${t+10}" class="ax">aujourd'hui</text>`:'';
+  const end=`<text x="${X(n-1)+8}" y="${Y(last.ctl)+4}" class="lbl">Forme ${Math.round(last.ctl)}</text><text x="${X(n-1)+8}" y="${Y(last.atl)+(Math.abs(Y(last.atl)-Y(last.ctl))<14?(last.atl>last.ctl?-10:18):4)}" class="lbl">Fatigue ${Math.round(last.atl)}</text>`;
+  const race=D.find(d=>d.k===S.race)||last, tsb=Math.round(race.tsb);
+  const tsbTxt=tsb>25?'très reposé, peut-être trop':tsb>=5?'frais : idéal pour courir':tsb>=-10?'neutre':'fatigué : il faudrait alléger';
+  $('pmc').innerHTML=`<div class="actions" style="justify-content:space-between"><h2>Forme et fatigue</h2><div class="legend"><span><i style="background:var(--c-ctl)"></i>Forme (charge de 6 semaines)</span><span><i style="background:var(--c-atl)"></i>Fatigue (charge de 7 jours)</span></div></div>
+  <div class="tiles"><div class="stat"><b>${Math.round(race.ctl)}</b><span>Forme le jour de course</span></div><div class="stat"><b>${tsb>0?'+':''}${tsb}</b><span>Fraîcheur le jour de course : ${tsbTxt}</span></div></div>
+  <div class="chartwrap" id="cw"><svg viewBox="0 0 ${Wd} ${H}" class="chart" role="img" aria-label="Courbe de forme et de fatigue jusqu'à la course">${grid}${xl}${tl}
+  <path d="${path('atl')}" class="ln" style="stroke:var(--c-atl)"/><path d="${path('ctl')}" class="ln" style="stroke:var(--c-ctl)"/>${end}
+  <line id="xh" class="xh" y1="${t}" y2="${H-b}" x1="0" x2="0" visibility="hidden"/><rect id="hit" x="${l}" y="${t}" width="${Wd-l-r}" height="${H-t-b}" fill="transparent"/></svg><div class="tip" id="tip" hidden></div></div>
+  <p class="hint">Calcul à partir de la charge prévue de chaque séance (TSS). Les séances notées « pas faite » comptent pour zéro. La fraîcheur (forme moins fatigue) doit remonter avant la course : c'est le rôle de la semaine de course.</p>`;
+  const svg=$('cw').querySelector('svg'), tip=$('tip'), xh=$('xh');
+  const move=ev=>{const rc=svg.getBoundingClientRect(), sx=(ev.clientX-rc.left)/rc.width*Wd;
+    const i=Math.max(0,Math.min(n-1,Math.round((sx-l)/(Wd-l-r)*(n-1)))), d=D[i];
+    xh.setAttribute('x1',X(i));xh.setAttribute('x2',X(i));xh.setAttribute('visibility','visible');
+    tip.hidden=false;tip.innerHTML=`<b>${DAYS[dow(d.date)]} ${fmt(d.date)}</b><br>Forme ${Math.round(d.ctl)} · Fatigue ${Math.round(d.atl)}<br>Fraîcheur ${Math.round(d.tsb)} · Charge du jour ${d.tss}`;
+    const px=X(i)/Wd*rc.width;tip.style.left=Math.min(rc.width-170,Math.max(0,px+10))+'px';};
+  $('hit').addEventListener('pointermove',move);$('hit').addEventListener('pointerleave',()=>{tip.hidden=true;xh.setAttribute('visibility','hidden');});
+}
+/* ---------- Coach : questions ---------- */
+let SAMPLE=null;
+function coachContext(){
+  const P=LAST;if(!P||P.error)return'';
+  const wk=P.weeks.find(w=>w.days.some(x=>iso(x.date)===TODAY))||P.weeks[0];
+  const nx=P.weeks[wk.i+1];
+  const dayTxt=x=>`${DAYS_L[x.d]} ${fmt(x.date)} : ${x.kind==='rest'?'repos':x.kind==='race'?'COURSE':x.kind==='none'?'-':x.s.title+' ('+mins(x.kind==='out'?x.s.min:sessMin(x.s))+')'}`;
+  const logs=Object.entries(S.log).filter(([k])=>k<=TODAY).sort().slice(-14).map(([k,v])=>`${k} : ${v.done?'faite'+(v.rpe?`, effort ${v.rpe}/10 (attendu ${v.exp})`:''):'non faite'}`).join('\n')||'aucun bilan';
+  const checks=Object.entries(S.check).sort().slice(-7).map(([k,c])=>`${k} : sommeil ${['mauvais','moyen','bon'][c.sleep]??'?'}, jambes ${['lourdes','normales','fraîches'][c.legs]??'?'}, motivation ${['faible','normale','forte'][c.motiv]??'?'}${c.hr?', FC repos '+c.hr:''}`).join('\n')||'aucun';
+  const pm=P.pmc.find(d=>d.k===TODAY), race=P.pmc.find(d=>d.k===S.race);
+  return`Athlète : ${S.name||'cycliste'}, ${S.age} ans, ${S.weight} kg, FTP ${S.ftp} W (${dec(S.ftp/S.weight,2)} W/kg), objectif ${S.target} W. Courses UFOLEP de 1 h 30 à 2 h, première le ${fmtL(pd(S.race))}. Home trainer Van Rysel D500 avec Zwift, séances de 60 min maximum, ${S.trainer.length} séances trainer + 1 sortie par semaine.
+Aujourd'hui : ${fmtL(pd(TODAY))}. Semaine ${wk.i+1}/${P.N}, phase ${PH[wk.ph]}.
+Cette semaine :\n${wk.days.map(dayTxt).join('\n')}
+${nx?'Semaine suivante ('+PH[nx.ph]+') :\n'+nx.days.map(dayTxt).join('\n'):''}
+Bilans récents :\n${logs}
+Checks du matin :\n${checks}
+${pm?`Charge aujourd'hui : forme ${Math.round(pm.ctl)}, fatigue ${Math.round(pm.atl)}, fraîcheur ${Math.round(pm.tsb)}.`:''} ${race?`Prévu le jour de course : forme ${Math.round(race.ctl)}, fraîcheur ${Math.round(race.tsb)}.`:''}
+Ajustement automatique en cours : ${CO.msg||'aucun'}`;
+}
+async function askCoach(q){
+  if(!SAMPLE||!q.trim())return;
+  const out=$('ask-out'), btn=$('ask-go'); btn.disabled=true; out.hidden=false; out.textContent='Le coach réfléchit…';
+  const prompt=`Tu es l'entraîneur de cyclisme de cet athlète : expérimenté, bienveillant et direct, comme un vrai coach humain qui connaît son athlète. Tu tutoies. Réponds en français simple, en 180 mots maximum, avec des conseils concrets (watts, durées, jours) tirés de son plan ci-dessous. Tu ne poses pas de diagnostic médical : en cas de douleur à la poitrine, malaise, essoufflement anormal ou fièvre, dis-lui d'arrêter et de consulter un médecin. N'utilise pas de tableaux.
+
+${coachContext()}
+
+Question de l'athlète : ${q.trim()}`;
+  try{await SAMPLE(prompt,{onText:({text})=>{out.textContent=text;}});}
+  catch(e){out.textContent=e&&e.code==='rate_limited'?'Le coach reçoit trop de questions : réessaie dans une minute.':e&&e.code==='not_granted'?'Le coach n\'est pas autorisé sur cette page.':'Le coach n\'a pas pu répondre. Réessaie plus tard.';}
+  btn.disabled=false;
+}
+(async()=>{try{SAMPLE=window.claude&&window.claude.use?await window.claude.use('sample'):null;}catch(e){SAMPLE=null;}
+  if(SAMPLE&&MODE==='coach')$('ask').hidden=false;})();
+
+function renderZones(){
+  const Z=[['z1','Z1 Récupération',0,.55],['z2','Z2 Endurance',.56,.75],['z3','Z3 Tempo',.76,.87],['z4','Sweet spot',.88,.94],['z4','Z4 Seuil',.95,1.05],['z5','Z5 VO2max',1.06,1.2],['z6','Z6 Anaérobie',1.21,null]];
+  $('zones').innerHTML='<thead><tr><th>Zone</th><th>% FTP</th><th>Puissance</th><th>Sensation</th></tr></thead><tbody>'+Z.map(([c,n,a,b],i)=>{
+    const feel=['Très facile','On peut parler','Soutenu','Dur mais tenable 1 h','Très dur, 20 à 60 min max','3 à 8 min max','Moins de 2 min'][i];
+    const pct=b===null?`> ${Math.round(a*100-1)} %`:a===0?`< ${Math.round(b*100)} %`:`${Math.round(a*100)} à ${Math.round(b*100)} %`;
+    const w=b===null?`> ${W(a)} W`:a===0?`< ${W(b)} W`:`${W(a)} à ${W(b)} W`;
+    return`<tr><td><span class="zdot" style="background:var(--${c})"></span>${n}</td><td class="num">${pct}</td><td class="w">${w}</td><td>${feel}</td></tr>`;}).join('')+'</tbody>';
+}
+function renderWeek(w){
+  const end=addD(w.wkStart,6);
+  const lvl=w.lv?` · charge ${w.lv}/3`:'';
+  return`<article class="panel week"><div class="week-h"><h3>Semaine ${w.i+1}<span class="pill" style="background:${PHC[w.ph]}">${PH[w.ph]}</span></h3>
+  <span class="meta num">${fmt(w.wkStart)} au ${fmt(end)}${lvl} · ${mins(w.vol)} de vélo</span></div>${banner(w)}${weekSummary(w)}<div class="days">${w.days.map(renderDay).join('')}</div></article>`;
+}
+function banner(w){
+  if(w.forced)return`<div class="banner"><span>Cette semaine a été transformée en semaine légère à cause de la fatigue.</span><button type="button" class="btn ghost sm" data-unrecup="${w.i}">Revenir au plan prévu</button></div>`;
+  const nxt=LAST_W[w.i+1];
+  if(w.tired>=2&&nxt&&!['recup','race'].includes(nxt.ph))return`<div class="banner"><span>${w.tired} jours de fatigue cette semaine. Je te conseille d'alléger la semaine suivante.</span><button type="button" class="btn sm" data-recup="${w.i+1}">Passer la semaine ${w.i+2} en récupération</button></div>`;
+  if(w.tired>=2)return`<div class="banner"><span>${w.tired} jours de fatigue cette semaine. La semaine suivante est déjà légère : profites-en pour bien dormir.</span></div>`;
+  return'';
+}
+function feelBar(x){
+  const k=iso(x.date), f=S.feel[k]||'';
+  const b=(v,cls,t)=>`<button type="button" class="chip ${cls}" aria-pressed="${f===v}" data-feel="${v}" data-date="${k}">${t}</button>`;
+  return`<div class="feel"><span>Comment tu te sens ?</span>${b('','f-ok','En forme')}${b('tired','f-tired','Fatigué : version facile')}${b('rest','f-rest','Épuisé : repos')}</div>`;
+}
+function dlBar(x){
+  if(x.kind!=='trainer'||!x.s.steps.length)return'';
+  const k=iso(x.date);
+  return`<div class="actions"><button type="button" class="btn sm" data-dl="zwo" data-date="${k}">Télécharger pour Zwift (.zwo)</button><button type="button" class="btn ghost sm" data-dl="erg" data-date="${k}">Fichier ERG (.erg / .mrc)</button></div>`;
+}
+function renderDay(x){
+  if(x.kind==='frest'){const dn2=`<div class="dname">${DAYS[x.d]}<small class="num">${fmt(x.date)}</small></div>`;
+    return`<details class="day" data-k="${iso(x.date)}"><summary>${dn2}<div class="stitle"><span class="tag" style="background:var(--z6)"></span>${esc(x.s.title)}<small>Prévu : ${esc(x.orig)}</small></div><div class="prof-cell"></div><div class="dur">0</div></summary><div class="detail"><p>${esc(x.s.goal)}</p>${feelBar(x)}</div></details>`;}
+  const dn=`<div class="dname">${DAYS[x.d]}<small class="num">${fmt(x.date)}</small></div>`;
+  if(x.kind==='none')return`<div class="day"><div class="rest">${dn}<div class="stitle">Hors plan</div><div class="prof-cell"></div><div></div></div></div>`;
+  if(x.kind==='rest')return`<div class="day"><div class="rest">${dn}<div class="stitle">${x.renfo?'Repos actif : renforcement 20 min (gainage, squats, fentes)':'Repos'}</div><div class="prof-cell"></div><div></div></div></div>`;
+  if(x.kind==='race')return`<div class="day race-row"><div class="rest">${dn}<div class="stitle" style="color:var(--ink);font-weight:600">Course UFOLEP<small>Échauffement 20 min avec 2 accélérations, puis tu fonces. Bonne course !</small></div><div class="prof-cell"></div><div class="dur">GO</div></div></div>`;
+  const s=x.s, isOut=x.kind==='out';
+  const m=isOut?s.min:sessMin(s);
+  const color=isOut?'var(--z2)':s.test?'var(--accent)':`var(--${mainZone(s)})`;
+  const sub=(isOut?'Sortie dehors':s.test?'Test':'Home trainer')+(x.feel?' · prévu : '+esc(x.orig):'')+(s.coach?' · ajustée par le coach':'')+logMark(x);
+  const steps=s.steps&&s.steps.length?`<ol>${s.steps.map(st=>`<li class="num">${esc(stepText(st))}</li>`).join('')}</ol>`:'';
+  return`<details class="day" data-k="${iso(x.date)}"><summary>${dn}<div class="stitle"><span class="tag" style="background:${color}"></span>${esc(s.title)}<small>${sub}</small></div><div class="prof-cell">${!isOut&&s.steps&&s.steps.length?profile(s):''}</div><div class="dur">${mins(m)}</div></summary>
+  <div class="detail"><p>${esc(s.goal)}</p>${steps}${dlBar(x)}${logBar(x)}${feelBar(x)}</div></details>`;
+}
+function renderTips(){
+  const prot=Math.round(S.weight*1.6);
+  const T=[
+    ['Deux vrais jours de repos','La progression se fait pendant la récupération. Après 50 ans, elle prend plus de temps : garde au moins 2 jours sans vélo par semaine.'],
+    ['Semaine légère toutes les 4 semaines','Ne la saute pas, même si tu te sens bien. C\'est elle qui permet d\'encaisser le bloc suivant.'],
+    [`Protéines : environ ${prot} g par jour`,'Soit 1,6 g par kg, réparties sur 3 à 4 repas, dont une portion dans l\'heure qui suit chaque séance.'],
+    ['Sommeil : 7 à 8 h','C\'est la récupération la plus efficace. Une mauvaise nuit avant une séance dure : fais-la plus facile.'],
+    ['Renforcement 2 fois par semaine','Gainage, squats, fentes, 20 min. À partir de 50 ans, on perd de la masse musculaire si on ne la travaille pas.'],
+    ['Signes de fatigue','Fréquence cardiaque au repos plus haute de 5 battements, jambes lourdes, mauvais sommeil : remplace la séance par du repos.'],
+    ['Pendant la séance','Ventilateur, 500 ml d\'eau par heure, et une boisson sucrée pour les séances au seuil ou plus.'],
+    ['Avant les séances intenses','Si tu n\'as pas fait d\'électrocardiogramme d\'effort récemment, fais-en un : c\'est recommandé après 50 ans.'],
+  ];
+  $('tips').innerHTML=T.map(([h,p])=>`<div><h3>${esc(h)}</h3><p>${esc(p)}</p></div>`).join('');
+}
+
+/* ---------- Exports ---------- */
+function zwo(s,name){
+  const p=v=>v.toFixed(2), sec=m=>Math.round(m*60);
+  const body=s.steps.map(x=>{
+    if(x.k==='w')return`    <Warmup Duration="${sec(x.d)}" PowerLow="${p(x.lo)}" PowerHigh="${p(x.hi)}"/>`;
+    if(x.k==='c')return`    <Cooldown Duration="${sec(x.d)}" PowerLow="${p(x.hi)}" PowerHigh="${p(x.lo)}"/>`;
+    if(x.k==='s')return`    <SteadyState Duration="${sec(x.d)}" Power="${p(x.p)}"/>`;
+    return`    <IntervalsT Repeat="${x.n}" OnDuration="${sec(x.on)}" OffDuration="${sec(x.off)}" OnPower="${p(x.pon)}" OffPower="${p(x.poff)}"/>`;
+  }).join('\n');
+  const xe=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  return`<workout_file>\n  <author>${xe('WattPlan · '+(S.name||''))}</author>\n  <name>${xe(name)}</name>\n  <description>${xe(s.goal)}</description>\n  <sportType>bike</sportType>\n  <tags><tag name="WattPlan"/></tags>\n  <workout>\n${body}\n  </workout>\n</workout_file>\n`;
+}
+/* Fichiers ERG (watts) et MRC (% FTP) : lus par TrainerRoad, Rouvy, Golden Cheetah, MyWhoosh, etc. */
+function ergFile(s,name,mode){
+  let t=0;const pts=[];const seg=(d,a,b)=>{pts.push([t,a]);t+=d;pts.push([t,b]);};
+  s.steps.forEach(x=>{
+    if(x.k==='w')seg(x.d,x.lo,x.hi);else if(x.k==='c')seg(x.d,x.hi,x.lo);else if(x.k==='s')seg(x.d,x.p,x.p);
+    else for(let i=0;i<x.n;i++){seg(x.on,x.pon,x.pon);seg(x.off,x.poff,x.poff);}
+  });
+  const v=p=>mode==='erg'?Math.round(S.ftp*p):Math.round(p*100);
+  const one=t=>String(t).replace(/[\r\n]+/g,' ');
+  return`[COURSE HEADER]\r\nVERSION = 2\r\nUNITS = METRIC\r\nDESCRIPTION = ${one(s.goal)}\r\nFILE NAME = ${one(name)}\r\n${mode==='erg'?`FTP = ${S.ftp}\r\nMINUTES WATTS`:'MINUTES PERCENT'}\r\n[END COURSE HEADER]\r\n[COURSE DATA]\r\n${pts.map(([a,p])=>a.toFixed(2)+'\t'+v(p)).join('\r\n')}\r\n[END COURSE DATA]\r\n`;
+}
+function findDay(k){if(!LAST||LAST.error)return null;for(const w of LAST.weeks)for(const x of w.days)if(iso(x.date)===k)return{w,x};return null;}
+const fileName=(w,x)=>`S${String(w.i+1).padStart(2,'0')} ${DAYS[x.d]} ${fmt(x.date)} - ${x.s.title}`;
+async function dlOne(k,mode){
+  const f=findDay(k);if(!f||f.x.kind!=='trainer')return;
+  if(typeof JSZip==='undefined'){toast("La création du fichier n'a pas pu se charger. Recharge la page.");return;}
+  const nm=fileName(f.w,f.x), base=slug(nm), zip=new JSZip();
+  if(mode==='zwo')zip.file(base+'.zwo',zwo(f.x.s,nm));
+  else{zip.file(base+'.erg',ergFile(f.x.s,nm,'erg'));zip.file(base+'.mrc',ergFile(f.x.s,nm,'mrc'));}
+  saveFile(base.toLowerCase()+'-'+mode+'.zip',await zip.generateAsync({type:'blob'}));
+}
+const slug=t=>t.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
+let dl=null;
+async function getDl(){if(dl)return dl;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){dl=null;}return dl;}
+function toast(t){$('toast').textContent=t;}
+async function saveFile(filename,data){
+  const d=await getDl();
+  if(!d){try{const u=URL.createObjectURL(data instanceof Blob?data:new Blob([data])),a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('Fichier téléchargé : '+filename);}catch(e){toast("Le téléchargement n'a pas fonctionné dans cette vue.");}return;}
+  try{await d.save({filename,data});toast('Fichier enregistré : '+filename);}
+  catch(e){toast(e&&e.code==='declined'?'Téléchargement annulé.':'Le téléchargement a échoué ('+(e&&e.code||'erreur')+').');}
+}
+$('b-zip').addEventListener('click',async()=>{
+  const P=build(); if(P.error)return;
+  if(typeof JSZip==='undefined'){toast("La création du .zip n'a pas pu se charger. Recharge la page.");return;}
+  const zip=new JSZip(), root='Plan-FTP-'+slug(S.name||'velo'), fz=zip.folder(root+'/Zwift'), fe=zip.folder(root+'/ERG');
+  let n=0;
+  P.weeks.forEach(w=>w.days.forEach(x=>{if(x.kind==='trainer'&&!x.s.test&&x.s.steps.length){
+    const nm=fileName(w,x), b=slug(nm);
+    fz.file(b+'.zwo',zwo(x.s,nm));fe.file(b+'.erg',ergFile(x.s,nm,'erg'));fe.file(b+'.mrc',ergFile(x.s,nm,'mrc'));n++;}}));
+  const blob=await zip.generateAsync({type:'blob'});
+  toast(n+' séances prêtes…');
+  saveFile('plan-ftp-'+slug(S.name||'velo').toLowerCase()+'-zwift.zip',blob);
+});
+$('b-print').addEventListener('click',()=>{
+  const P=build(); if(P.error)return;
+  const rows=P.weeks.map(w=>{
+    const end=addD(w.wkStart,6);
+    const ds=w.days.filter(x=>x.kind!=='none').map(x=>{
+      let t,det='';
+      if(x.kind==='rest')t=x.renfo?'Repos actif : renforcement 20 min':'Repos';
+      else if(x.kind==='race')t='<b>COURSE UFOLEP</b>';
+      else{t=`<b>${esc(x.s.title)}</b> (${mins(x.kind==='out'?x.s.min:sessMin(x.s))})`;det=(x.s.steps&&x.s.steps.length?x.s.steps.map(st=>esc(stepText(st))).join('<br>'):esc(x.s.goal));}
+      return`<tr><td>${DAYS_L[x.d]} ${fmt(x.date)}</td><td>${t}${det?'<div class="d">'+det+'</div>':''}</td><td class="c">&#9744;</td></tr>`;}).join('');
+    return`<h2>Semaine ${w.i+1} · ${PH[w.ph]} <small>${fmt(w.wkStart)} au ${fmt(end)}</small></h2><table>${ds}</table>`;}).join('');
+  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Plan FTP ${esc(S.name)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;max-width:800px;margin:20px auto;padding:0 16px}h1{font-size:22px;margin:0}h2{font-size:15px;margin:18px 0 6px;page-break-after:avoid}h2 small{font-weight:normal;color:#555}table{width:100%;border-collapse:collapse;page-break-inside:avoid}td{border:1px solid #ccc;padding:5px 7px;vertical-align:top}td:first-child{width:120px}.c{width:24px;text-align:center;font-size:16px}.d{color:#444;margin-top:3px}</style></head><body><h1>Plan FTP ${esc(S.name)}</h1><p>FTP ${S.ftp} W (${dec(S.ftp/S.weight,2)} W/kg) · objectif ${S.target} W · 1re course le ${fmtL(pd(S.race))}. Zones : Z2 ${W(.56)} à ${W(.75)} W, sweet spot ${W(.88)} à ${W(.94)} W, seuil ${W(.95)} à ${W(1.05)} W, VO2max ${W(1.06)} à ${W(1.2)} W.</p>${rows}</body></html>`;
+  saveFile('plan-ftp-'+slug(S.name||'velo').toLowerCase()+'.html',html);
+});
+
+/* ---------- Événements ---------- */
+const num=(id,k)=>$(id).addEventListener('input',e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0){S[k]=v;save();render();}});
+num('f-age','age');num('f-weight','weight');num('f-ftp','ftp');num('f-target','target');num('f-max','maxMin');num('f-outh','outH');
+$('f-name').addEventListener('input',e=>{S.name=e.target.value.trim();save();render();});
+['start','race'].forEach(k=>$('f-'+k).addEventListener('change',e=>{if(e.target.value){S[k]=e.target.value;save();render();}}));
+$('c-trainer').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=+b.dataset.d;
+  if(S.trainer.includes(d)){if(S.trainer.length<=2){toast('Garde au moins 2 jours de home trainer.');return;}S.trainer=S.trainer.filter(x=>x!==d);}
+  else{if(S.trainer.length>=4){toast('4 jours maximum : retire d\'abord un jour.');return;}if(d===S.outdoor){toast('Ce jour est celui de ta sortie dehors.');return;}S.trainer=[...S.trainer,d];}
+  save();renderForm();render();});
+$('c-out').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=+b.dataset.d;if(S.trainer.includes(d)){toast('Ce jour est déjà un jour de home trainer.');return;}S.outdoor=d;save();renderForm();render();});
+$('weeks').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.dl){dlOne(b.dataset.date,b.dataset.dl);return;}
+  if('feel' in b.dataset){const k=b.dataset.date;if(b.dataset.feel)S.feel[k]=b.dataset.feel;else delete S.feel[k];save();render();
+    toast(b.dataset.feel==='rest'?'Noté : repos aujourd\'hui.':b.dataset.feel==='tired'?'Noté : séance remplacée par une version facile.':'Noté : séance normale.');return;}
+  if(b.dataset.log){const k=b.dataset.date;const lg=S.log[k]||{};
+    if(b.dataset.log==='done'){lg.done=true;lg.exp=+b.dataset.exp;}else{lg.done=false;delete lg.rpe;}
+    S.log[k]=lg;save();render();toast(lg.done?'Séance notée comme faite. Indique ton effort ressenti.':'Séance notée comme non faite.');return;}
+  if(b.dataset.rpe){const k=b.dataset.date;S.log[k]=Object.assign(S.log[k]||{},{done:true,rpe:+b.dataset.rpe,exp:+b.dataset.exp});save();render();toast('Effort enregistré : le coach en tient compte.');return;}
+  if(b.dataset.recup){const i=+b.dataset.recup;if(!S.forceRecup.includes(i))S.forceRecup.push(i);save();render();toast(`Semaine ${i+1} passée en récupération.`);return;}
+  if(b.dataset.unrecup){const i=+b.dataset.unrecup;S.forceRecup=S.forceRecup.filter(v=>v!==i);save();render();toast(`Semaine ${i+1} remise comme prévu.`);}
+});
+$('check').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.check){const c=S.check[TODAY]||(S.check[TODAY]={});c[b.dataset.check]=+b.dataset.v;save();render();return;}
+  if('feel' in b.dataset){S.feel[b.dataset.date]=b.dataset.feel;save();render();toast(b.dataset.feel==='rest'?'Noté : repos aujourd\'hui.':'Noté : séance du jour en version facile.');}
+});
+$('check').addEventListener('change',e=>{
+  if(e.target.id==='c-hr'){const v=parseInt(e.target.value);const c=S.check[TODAY]||(S.check[TODAY]={});if(v>0)c.hr=v;else delete c.hr;save();render();}
+  if(e.target.id==='c-hrbase'){const v=parseInt(e.target.value);S.hrBase=v>0?v:null;save();render();}
+});
+$('ask-q').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('ask-text').value=b.dataset.q;askCoach(b.dataset.q);});
+$('ask-go').addEventListener('click',()=>askCoach($('ask-text').value));
+$('b-reset').addEventListener('click',()=>{const id=S.id,name=S.name;S=fresh();S.id=id;S.name=name;save();renderForm();render();toast('Athlète réinitialisé.');});
+let SHOW_ONB=false;
+document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.id==='x-copy')copyText($('x-msg').value,$('x-msg'));
+  if(b.id==='x-pcopy')copyText($('x-plan').value,$('x-plan'));
+  if(b.id==='x-import')importBilan($('x-in').value);
+  if(b.id==='b-new'){const id='a'+Date.now().toString(36);const a=fresh();a.id=id;a.name='Nouvel athlète';a.age=40;a.weight=70;a.ftp=200;a.target=230;a.start=iso(addD(pd(TODAY),1));T.list[id]=a;T.cur=id;S=a;save();renderForm();render();$('f-name').focus();$('f-name').select();toast('Nouvel athlète créé : remplis ses informations.');}
+  if(b.id==='b-del'){$('del-confirm').hidden=false;}
+  if(b.id==='b-del-no'){$('del-confirm').hidden=true;}
+  if(b.id==='b-del-yes'){delete T.list[T.cur];T.cur=Object.keys(T.list)[0];S=T.list[T.cur];save();renderForm();render();toast('Athlète supprimé.');}
+  if(b.id==='onb-go'){if(importPlan($('onb-code').value)){SHOW_ONB=false;$('onb-code').value='';render();toast('Ton plan est chargé.');}}
+  if(b.id==='onb-cancel'){SHOW_ONB=false;render();}
+  if(b.id==='b-newcode'){SHOW_ONB=true;render();$('onb-cancel').hidden=false;$('onb').scrollIntoView({behavior:'smooth'});}
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='f-athlete'){T.cur=e.target.value;S=T.list[T.cur];save();renderForm();render();}
+  if(e.target.id==='f-tel'){T.coachTel=e.target.value.trim();save();render();}
+});
+
+renderForm();render();
+})();
+</script>
+
+</body>
+</html>
